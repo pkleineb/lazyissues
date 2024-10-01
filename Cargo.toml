@@ -1,0 +1,7 @@
+[package]
+name = "rust_issue_handler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratatui = "0.28.1"
