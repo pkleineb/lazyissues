@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     io,
     result::Result,
     sync::mpsc,
@@ -7,8 +6,8 @@ use std::{
 };
 
 use ratatui::{
-    backend,
     crossterm::event::{self, Event as CrossEvent},
+    layout::{Constraint, Layout},
     prelude::CrosstermBackend,
     Terminal,
 };
@@ -37,6 +36,17 @@ impl From<MenuItem> for usize {
             MenuItem::PullRequests | MenuItem::PullRequestView => 1,
             MenuItem::Actions => 2,
             MenuItem::Projects | MenuItem::ProjectsView => 3,
+        }
+    }
+}
+
+impl From<MenuItem> for String {
+    fn from(input: MenuItem) -> String {
+        match input {
+            MenuItem::Issues | MenuItem::IssueView => "Issues".to_string(),
+            MenuItem::PullRequests | MenuItem::PullRequestView => "Pull requests".to_string(),
+            MenuItem::Actions => "Actions".to_string(),
+            MenuItem::Projects | MenuItem::ProjectsView => "Projects".to_string(),
         }
     }
 }
@@ -119,6 +129,24 @@ impl TerminalApp {
         match self.terminal.clear() {
             Err(error) => println!("{error} occured during terminal clearing"),
             _ => (),
+        }
+
+        loop {
+            let _ = self.terminal.draw(|rect| {
+                let size = rect.area();
+                let _chunks = Layout::default()
+                    .direction(ratatui::layout::Direction::Vertical)
+                    .margin(2)
+                    .constraints(
+                        [
+                            Constraint::Length(3),
+                            Constraint::Min(2),
+                            Constraint::Length(3),
+                        ]
+                        .as_ref(),
+                    )
+                    .split(size);
+            });
         }
     }
 }
