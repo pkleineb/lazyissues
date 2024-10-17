@@ -20,6 +20,8 @@
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           toolchain
+          pkg-config
+          openssl
 
           rust-analyzer-unwrapped
         ];
