@@ -1,6 +1,6 @@
-use std::{io, sync::mpsc, thread};
+use std::{sync::mpsc, thread};
 
-use ratatui::{crossterm::terminal::enable_raw_mode, prelude::CrosstermBackend, Terminal};
+use ratatui::crossterm::terminal::enable_raw_mode;
 use rust_issue_handler::{EventLoop, TerminalApp};
 
 fn main() {
