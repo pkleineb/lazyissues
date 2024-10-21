@@ -30,7 +30,7 @@
 
         shellHook = ''
           export PATH=$PATH:''${CARGO_HOME:-~/.cargo}/bin
-          exec $SHELL
+          exec zsh
         '';
       };
     };
