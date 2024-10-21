@@ -1,57 +1,35 @@
-use std::{fs, io, path::PathBuf};
+use std::{fs, io, path::PathBuf, rc::Rc};
 
 use ratatui::{
+    crossterm::event::KeyCode,
     layout::Rect,
     style::{Color, Style},
     widgets::{Block, Borders, List, ListState},
     Frame,
 };
 
-use crate::create_floating_layout;
+use crate::{create_floating_layout, ui::PanelElement};
 
 pub struct FileExplorer {
     current_path: PathBuf,
     items: Vec<PathBuf>,
     state: ListState,
+
+    layout_position: usize,
 }
 
 impl FileExplorer {
-    pub fn new() -> Self {
-        // i dont really like this error handling since it should be passed to the TerminalApp but
-        // mhm
-        let current_path = match std::env::current_dir() {
-            Ok(path) => path,
-            Err(error) => {
-                println!("{error} occured while getting cwd!");
-                PathBuf::from("")
-            }
-        };
+    pub fn new(layout_position: usize) -> io::Result<Self> {
+        let current_path = std::env::current_dir()?;
         let mut explorer = Self {
             current_path,
             items: Vec::new(),
             state: ListState::default(),
+
+            layout_position,
         };
-        // i dont really like this error handling since it should be passed to the TerminalApp but
-        // mhm
-        match explorer.update_items() {
-            Ok(_) => (),
-            Err(error) => println!("{error} occured while updating items!"),
-        }
-        explorer
-    }
-
-    pub fn render(&self, render_frame: &mut Frame, chunk: Rect) {
-        let directory_items = self.items_as_str();
-
-        let display_rect = List::new(directory_items)
-            .block(
-                Block::default()
-                    .title(self.current_path.to_str().unwrap_or("path"))
-                    .borders(Borders::ALL),
-            )
-            .style(Style::default().fg(Color::White));
-
-        render_frame.render_widget(display_rect, create_floating_layout(50, 50, chunk));
+        explorer.update_items()?;
+        Ok(explorer)
     }
 
     fn items_as_str(&self) -> Vec<&str> {
@@ -111,5 +89,36 @@ impl FileExplorer {
             None => self.items.len() - 1,
         };
         self.state.select(Some(entry_index));
+    }
+}
+
+impl PanelElement for FileExplorer {
+    fn handle_input(&mut self, key_code: KeyCode) -> bool {
+        match key_code {
+            _ => (),
+        }
+
+        true
+    }
+
+    fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) {
+        let directory_items = self.items_as_str();
+
+        let display_rect = List::new(directory_items)
+            .block(
+                Block::default()
+                    .title(self.current_path.to_str().unwrap_or("path"))
+                    .borders(Borders::ALL),
+            )
+            .style(Style::default().fg(Color::White));
+
+        render_frame.render_widget(
+            display_rect,
+            create_floating_layout(50, 50, layout[self.layout_position]),
+        );
+    }
+
+    fn tick(&mut self) -> () {
+        ()
     }
 }
