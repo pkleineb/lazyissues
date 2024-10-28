@@ -21,9 +21,7 @@ use ratatui::{
 use ui::UiStack;
 
 mod config;
-mod file_explorer;
 mod graphql_requests;
-mod tab_menu;
 mod ui;
 
 pub const TICK_RATE: Duration = Duration::from_millis(200);
@@ -31,6 +29,11 @@ pub const TICK_RATE: Duration = Duration::from_millis(200);
 pub enum Event<I> {
     Input(I),
     Tick,
+}
+
+pub enum Signal {
+    Quit,
+    ErrorOccured(String),
 }
 
 pub struct EventLoop {
@@ -93,6 +96,9 @@ impl EventLoop {
 pub struct TerminalApp {
     input_receiver: mpsc::Receiver<Event<CrossEvent>>,
 
+    signal_sender_cloner: mpsc::Sender<Signal>,
+    signal_receiver: mpsc::Receiver<Signal>,
+
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
 }
 
@@ -101,9 +107,12 @@ impl TerminalApp {
         let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
+        let (signal_sender_cloner, signal_receiver) = mpsc::channel();
 
         Ok(Self {
             input_receiver,
+            signal_sender_cloner,
+            signal_receiver,
             terminal,
         })
     }
@@ -123,9 +132,13 @@ impl TerminalApp {
             }
         };
 
-        let mut ui_stack = Self::create_ui(UiStack::new());
+        let mut ui_stack = self.create_ui(UiStack::new());
 
         loop {
+            for panel in ui_stack.iter_rev() {
+                panel.tick();
+            }
+
             let _ = self.terminal.draw(|render_frame| {
                 let layout = Self::create_base_layout(render_frame);
 
@@ -137,20 +150,16 @@ impl TerminalApp {
             match self.input_receiver.recv() {
                 Ok(event) => match event {
                     Event::Input(event) => match event {
-                        CrossEvent::Key(key) => match key.code {
-                            KeyCode::Char('q') => {
-                                self.clean_up_terminal(None);
-                                break;
+                        CrossEvent::Key(key) => {
+                            for panel in ui_stack.iter() {
+                                if panel.handle_input(key) {
+                                    break;
+                                }
                             }
-                            _ => (), // use event here
-                        },
+                        }
                         _ => (),
                     },
-                    Event::Tick => {
-                        for panel in ui_stack.iter_rev() {
-                            panel.tick();
-                        }
-                    }
+                    Event::Tick => {}
                 },
                 Err(error) => {
                     self.clean_up_terminal(Some(format!(
@@ -159,14 +168,24 @@ impl TerminalApp {
                     break;
                 }
             };
+
+            if let Ok(signal) = self.signal_receiver.try_recv() {
+                match signal {
+                    Signal::Quit => {
+                        self.clean_up_terminal(None);
+                        break;
+                    }
+                    Signal::ErrorOccured(_message) => {}
+                }
+            }
         }
     }
 
-    fn create_ui(mut ui_stack: UiStack) -> UiStack {
-        let tab_menu = tab_menu::TabMenu::new(0);
+    fn create_ui(&self, mut ui_stack: UiStack) -> UiStack {
+        let tab_menu = ui::tab_menu::TabMenu::new(0, self.signal_sender_cloner.clone());
         ui_stack.add_panel(tab_menu, 10);
 
-        match file_explorer::FileExplorer::new(1) {
+        match ui::file_explorer::FileExplorer::new(1) {
             Ok(explorer) => ui_stack.add_panel(explorer, 0),
             Err(error) => println!("{error} occured during creation of file explorer!"),
         }
