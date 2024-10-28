@@ -1,9 +1,12 @@
 use std::{collections::BTreeMap, rc::Rc};
 
-use ratatui::{crossterm::event::KeyCode, layout::Rect, Frame};
+use ratatui::{crossterm::event::KeyEvent, layout::Rect, Frame};
+
+pub mod file_explorer;
+pub mod tab_menu;
 
 pub trait PanelElement {
-    fn handle_input(&mut self, key_code: KeyCode) -> bool;
+    fn handle_input(&mut self, key_event: KeyEvent) -> bool;
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) -> ();
     fn tick(&mut self) -> ();
 }
