@@ -105,13 +105,13 @@ impl TabMenu {
         }
     }
 
-    async fn fetch_issues(sender: mpsc::Sender<(MenuItem, QueryData)>) {
+    async fn fetch_issues(sender: mpsc::Sender<(MenuItem, QueryData)>, acces_token: String) {
         let variables = issue_query::Variables {
             repo_name: "test_repo".to_string(),
             repo_owner: "pkleineb".to_string(),
         };
 
-        let response_data = perform_issue_query(variables).await;
+        let response_data = perform_issue_query(variables, acces_token).await;
 
         match response_data {
             Ok(ok) => match ok {
@@ -145,11 +145,16 @@ impl PanelElement for TabMenu {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
                     let cloned_sender = self.query_clone_sender.clone();
+                    let cloned_access_token = self.config.github_token.clone();
+
                     thread::spawn(move || {
                         let runtime = Runtime::new();
                         match runtime {
                             Ok(runtime) => runtime.block_on(async {
-                                Self::fetch_issues(cloned_sender).await;
+                                match cloned_access_token {
+                                    Some(token) => Self::fetch_issues(cloned_sender, token).await,
+                                    None => log::error!("Github access token was not set."),
+                                }
                             }),
                             Err(error) => log::error!("{error} occured while creating runtime"),
                         };

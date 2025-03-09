@@ -58,7 +58,7 @@ macro_rules! get_first_entry_as_int {
 macro_rules! read_token_file_backend {
     ($backend:expr) => {
         if let Some(path) = $backend {
-            return fs::read_to_string(path);
+            Ok(fs::read_to_string(path)?.trim().to_string())
         } else {
             Err(IoError::new(
                 std::io::ErrorKind::NotFound,
@@ -93,11 +93,11 @@ pub fn get_config_file() -> PathBuf {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
-    github_token: Option<String>,
+    pub github_token: Option<String>,
     github_token_path: Option<PathBuf>,
-    gitlab_token: Option<String>,
+    pub gitlab_token: Option<String>,
     gitlab_token_path: Option<PathBuf>,
-    gitea_token: Option<String>,
+    pub gitea_token: Option<String>,
     gitea_token_path: Option<PathBuf>,
 
     credential_attempts: u64,

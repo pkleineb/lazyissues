@@ -1,5 +1,5 @@
 pub mod github {
-    use std::{error::Error, fs::File, io::Write};
+    use std::error::Error;
 
     use graphql_client::{GraphQLQuery, Response};
     use reqwest::header;
@@ -29,6 +29,7 @@ pub mod github {
 
     pub async fn perform_issue_query(
         variables: issue_query::Variables,
+        access_token: String,
     ) -> Result<Option<issue_query::ResponseData>, Box<dyn Error>> {
         let request_body = IssueQuery::build_query(variables);
 
@@ -38,7 +39,7 @@ pub mod github {
                 let mut headers = header::HeaderMap::new();
                 headers.insert(
                     header::AUTHORIZATION,
-                    header::HeaderValue::from_str(&format!("token {}", "akdjflasjfd"))?,
+                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
                 );
                 headers
             })
@@ -51,10 +52,7 @@ pub mod github {
             .await?;
 
         let text = response.text().await?;
-        if let Ok(mut file) = File::create("out.txt") {
-            file.write_all(text.as_bytes());
-            file.flush();
-        }
+        log::debug!("Server response was: {:?}", text);
         let response_body: Response<issue_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
         Ok(response_body.data)
     }
