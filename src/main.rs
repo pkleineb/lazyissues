@@ -1,10 +1,12 @@
-use std::{sync::mpsc, thread};
+use std::{error::Error, sync::mpsc, thread};
 
 use ratatui::crossterm::terminal::enable_raw_mode;
-use rust_issue_handler::{EventLoop, TerminalApp};
+use rust_issue_handler::{enable_logging, EventLoop, TerminalApp};
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
+    enable_logging()?;
     setup_terminal();
+    Ok(())
 }
 
 fn setup_terminal() {
@@ -17,7 +19,7 @@ fn setup_terminal() {
 
     let app = TerminalApp::new(receiver);
     match app {
-        Err(error) => println!("{error} occured during start of terminal app!"),
+        Err(error) => log::error!("{error} occured during start of terminal app!"),
         Ok(mut app) => app.run(),
     }
 }

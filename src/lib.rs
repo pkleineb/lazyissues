@@ -2,16 +2,21 @@
 // key inputs to any panel; next up fix all the errors
 
 use std::{
+    fs::{self, OpenOptions},
     io,
+    path::PathBuf,
     rc::Rc,
     result::Result,
     sync::mpsc,
     time::{Duration, Instant},
 };
 
+use config::Config;
+use dirs::data_local_dir;
+use env_logger::{Builder, Env};
 use ratatui::{
     crossterm::{
-        event::{self, Event as CrossEvent, KeyCode},
+        event::{self, Event as CrossEvent},
         terminal::disable_raw_mode,
     },
     layout::{Constraint, Direction, Layout, Rect},
@@ -23,6 +28,35 @@ use ui::UiStack;
 mod config;
 mod graphql_requests;
 mod ui;
+
+pub const LOG_FILE_NAME: &str = "lazyissues.log";
+pub const LOG_DIR_NAME: &str = "lazyissues";
+
+pub fn enable_logging() -> Result<(), std::io::Error> {
+    let log_dir = data_local_dir()
+        .unwrap_or(PathBuf::new())
+        .join(LOG_DIR_NAME);
+
+    fs::create_dir_all(&log_dir)?;
+
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_dir.join(LOG_FILE_NAME))?;
+
+    let default_level = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "info"
+    };
+
+    Builder::from_env(Env::default().default_filter_or(default_level))
+        .target(env_logger::Target::Pipe(Box::new(file)))
+        .format_timestamp(Some(env_logger::fmt::TimestampPrecision::Seconds))
+        .init();
+
+    Ok(())
+}
 
 pub const TICK_RATE: Duration = Duration::from_millis(200);
 
@@ -123,12 +157,11 @@ impl TerminalApp {
             return;
         }
 
-        let mut config = match config::read_config() {
-            Ok(Some(config)) => config,
-            Ok(None) => config::Config::new(),
+        let config = match Config::from_config_file() {
+            Ok(config) => config,
             Err(error) => {
-                println!("{error} occured while reading config! Using default config.");
-                config::Config::new()
+                log::error!("{}", error);
+                Config::new()
             }
         };
 
@@ -185,10 +218,10 @@ impl TerminalApp {
         let tab_menu = ui::tab_menu::TabMenu::new(0, self.signal_sender_cloner.clone());
         ui_stack.add_panel(tab_menu, 10);
 
-        match ui::file_explorer::FileExplorer::new(1) {
-            Ok(explorer) => ui_stack.add_panel(explorer, 0),
-            Err(error) => println!("{error} occured during creation of file explorer!"),
-        }
+        //match ui::file_explorer::FileExplorer::new(1) {
+        //    Ok(explorer) => ui_stack.add_panel(explorer, 0),
+        //    Err(error) => println!("{error} occured during creation of file explorer!"),
+        //}
 
         ui_stack
     }
