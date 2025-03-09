@@ -161,28 +161,24 @@ impl TerminalApp {
         })
     }
 
+    // main render loop
     pub fn run(&mut self) {
+        // clear terminal if this doesn't succed we can't really draw therefore we quit
         if let Err(error) = self.terminal.clear() {
-            println!("{error} occured during terminal clearing");
+            log::error!("{error} occured during terminal clearing");
             return;
         }
-
-        let config = match Config::from_config_file() {
-            Ok(config) => config,
-            Err(error) => {
-                log::error!("{}", error);
-                Config::new()
-            }
-        };
 
         let mut ui_stack = self.create_ui(UiStack::new());
 
         loop {
+            // we call tick for every panel so they can try and receive their data
+            // revers since we need to draw the bottom most element first
             for panel in ui_stack.iter_rev() {
                 panel.tick();
             }
 
-            let _ = self.terminal.draw(|render_frame| {
+            let draw_success = self.terminal.draw(|render_frame| {
                 let layout = Self::create_base_layout(render_frame);
 
                 for panel in ui_stack.iter() {
@@ -190,6 +186,13 @@ impl TerminalApp {
                 }
             });
 
+            if let Err(error) = draw_success {
+                log::error!("Drawing to screen errored due to: {}", error);
+            }
+
+            // if we get an input event we pass that to the top most element and others
+            // depending on if the panel doesn't want other panels to receive that input
+            // we break the loop
             match self.input_receiver.recv() {
                 Ok(event) => match event {
                     Event::Input(event) => match event {
@@ -246,15 +249,18 @@ impl TerminalApp {
     }
 
     fn clean_up_terminal(&mut self, message: Option<String>) {
+        if let Err(error) = self.terminal.clear() {
+            log::error!("{error} occured during terminal clearing");
+        }
         if let Err(error) = disable_raw_mode() {
-            println!("{error} occured when trying to exit raw mode!");
+            log::error!("{error} occured when trying to exit raw mode!");
         }
         if let Err(error) = self.terminal.show_cursor() {
-            println!("{error} occured when trying to show cursor!");
+            log::error!("{error} occured when trying to show cursor!");
         }
 
         match message {
-            Some(message) => println!("{message}"),
+            Some(message) => log::error!("{message}"),
             None => (),
         }
     }
