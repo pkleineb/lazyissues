@@ -143,12 +143,12 @@ impl TabMenu {
         match response_data {
             Ok(ok) => match ok {
                 Some(data) => match sender.send((MenuItem::Issues, QueryData::IssuesData(data))) {
-                    Err(error) => println!("{error} occured during sending of query data!"),
+                    Err(error) => log::error!("{error} occured during sending of query data!"),
                     _ => (),
                 },
-                None => println!("No data fetched from server!"),
+                None => log::debug!("No data fetched from server!"),
             },
-            Err(error) => println!("{:?} occured during fetching data from server!", error),
+            Err(error) => log::error!("{:?} occured during fetching data from server!", error),
         };
     }
 }
@@ -160,6 +160,15 @@ impl PanelElement for TabMenu {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => match key_event.code {
+                KeyCode::Char('q') => {
+                    let _ = self.signal_sender.send(Signal::Quit);
+                }
+                _ => (),
+            },
+            KeyEvent {
+                modifiers: KeyModifiers::SHIFT,
+                ..
+            } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
                     let cloned_sender = self.query_clone_sender.clone();
@@ -169,16 +178,13 @@ impl PanelElement for TabMenu {
                             Ok(runtime) => runtime.block_on(async {
                                 Self::fetch_issues(cloned_sender).await;
                             }),
-                            Err(error) => println!("{error} occured while creating runtime"),
+                            Err(error) => log::error!("{error} occured while creating runtime"),
                         };
                     });
                 }
                 KeyCode::Char('P') => self.active_menu_item = MenuItem::PullRequests,
                 KeyCode::Char('A') => self.active_menu_item = MenuItem::Actions,
-                KeyCode::Char('r') => self.active_menu_item = MenuItem::Projects,
-                KeyCode::Char('q') => {
-                    let _ = self.signal_sender.send(Signal::Quit);
-                }
+                KeyCode::Char('R') => self.active_menu_item = MenuItem::Projects,
                 _ => (),
             },
             _ => (),
