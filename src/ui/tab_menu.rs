@@ -11,6 +11,7 @@ use ratatui::{
 use tokio::runtime::Runtime;
 
 use crate::{
+    config::Config,
     graphql_requests::github::{issue_query, perform_issue_query},
     ui::PanelElement,
     Signal,
@@ -76,10 +77,16 @@ pub struct TabMenu {
     query_response_data: HashMap<MenuItem, QueryData>,
 
     signal_sender: mpsc::Sender<Signal>,
+
+    config: Config,
 }
 
 impl TabMenu {
-    pub fn new(layout_position: usize, signal_sender: mpsc::Sender<Signal>) -> Self {
+    pub fn new(
+        layout_position: usize,
+        signal_sender: mpsc::Sender<Signal>,
+        config: Config,
+    ) -> Self {
         let (query_clone_sender, query_receiver) = mpsc::channel();
 
         Self {
@@ -89,6 +96,7 @@ impl TabMenu {
             query_clone_sender,
             query_response_data: HashMap::new(),
             signal_sender,
+            config,
         }
     }
 

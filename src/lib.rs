@@ -134,6 +134,7 @@ pub struct TerminalApp {
     signal_receiver: mpsc::Receiver<Signal>,
 
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    config: Config,
 }
 
 impl TerminalApp {
@@ -143,11 +144,20 @@ impl TerminalApp {
         let terminal = Terminal::new(backend)?;
         let (signal_sender_cloner, signal_receiver) = mpsc::channel();
 
+        let config = match Config::from_config_file() {
+            Ok(config) => config,
+            Err(error) => {
+                log::error!("{}", error);
+                Config::new()
+            }
+        };
+
         Ok(Self {
             input_receiver,
             signal_sender_cloner,
             signal_receiver,
             terminal,
+            config,
         })
     }
 
@@ -215,7 +225,8 @@ impl TerminalApp {
     }
 
     fn create_ui(&self, mut ui_stack: UiStack) -> UiStack {
-        let tab_menu = ui::tab_menu::TabMenu::new(0, self.signal_sender_cloner.clone());
+        let tab_menu =
+            ui::tab_menu::TabMenu::new(0, self.signal_sender_cloner.clone(), self.config.clone());
         ui_stack.add_panel(tab_menu, 10);
 
         //match ui::file_explorer::FileExplorer::new(1) {
