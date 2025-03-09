@@ -17,6 +17,8 @@ use crate::{
     Signal,
 };
 
+use super::{issues_view::IssuesView, UiStack};
+
 #[derive(Hash, PartialEq, Eq)]
 pub enum MenuItem {
     Issues,
@@ -74,11 +76,13 @@ pub struct TabMenu {
     query_clone_sender: mpsc::Sender<(MenuItem, QueryData)>,
 
     // this might be a stupid way to store this
-    query_response_data: HashMap<MenuItem, QueryData>,
+    query_response_data: Vec<(MenuItem, QueryData)>,
 
     signal_sender: mpsc::Sender<Signal>,
 
     config: Config,
+
+    ui_stack: UiStack,
 }
 
 impl TabMenu {
@@ -94,49 +98,10 @@ impl TabMenu {
             layout_position,
             query_receiver,
             query_clone_sender,
-            query_response_data: HashMap::new(),
+            query_response_data: vec![],
             signal_sender,
             config,
-        }
-    }
-
-    fn render_issues_view(
-        render_frame: &mut Frame,
-        chunk: Rect,
-        query_response_data: &Vec<QueryData>,
-    ) {
-        for response_data in query_response_data.iter() {
-            match response_data {
-                QueryData::IssuesData(data) => {
-                    if let Some(repo) = &data.repository {
-                        Self::display_issues(&repo, render_frame, chunk)
-                    }
-                }
-            }
-        }
-    }
-
-    fn display_issues(
-        repo_data: &issue_query::IssueQueryRepository,
-        render_frame: &mut Frame,
-        chunk: Rect,
-    ) {
-        if let Some(issues) = &repo_data.issues.nodes {
-            let issue_items: Vec<Span> = issues
-                .iter()
-                .map(|issue| {
-                    if let Some(node) = issue {
-                        return Span::styled(&node.title, Style::default());
-                    }
-                    Span::default()
-                })
-                .collect();
-
-            let issue_list = List::new(issue_items)
-                .block(Block::default().title("Issues").borders(Borders::ALL))
-                .style(Style::default().fg(Color::White));
-
-            render_frame.render_widget(issue_list, chunk);
+            ui_stack: UiStack::new(),
         }
     }
 
@@ -231,6 +196,10 @@ impl PanelElement for TabMenu {
             .divider(Span::raw("|"));
 
         render_frame.render_widget(tabs, layout[self.layout_position]);
+
+        for panel in self.ui_stack.iter() {
+            panel.render(render_frame, &layout)
+        }
     }
 
     fn tick(&mut self) -> () {
@@ -239,7 +208,24 @@ impl PanelElement for TabMenu {
         // the sender I am ignoring the error here but that may not be best practice
         if let Ok(data) = self.query_receiver.try_recv() {
             let (key, value) = data;
-            self.query_response_data.insert(key, value);
+            self.query_response_data.push((key, value));
+        }
+
+        for (menu_item, query_data) in self.query_response_data.drain(..) {
+            if menu_item != self.active_menu_item {
+                continue;
+            }
+
+            match query_data {
+                QueryData::IssuesData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        self.ui_stack
+                            .add_panel(IssuesView::new(1, repo_data), top_priority);
+                    }
+                    None => log::debug!("Couldn't display issues since there was no repository"),
+                },
+            }
         }
     }
 }
