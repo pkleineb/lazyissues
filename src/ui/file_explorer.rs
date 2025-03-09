@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
@@ -123,9 +124,23 @@ impl FileExplorer {
     }
 
     fn add_to_mask(&mut self, char: char) -> io::Result<()> {
-        self.path_mask += &char.to_string();
-
-        self.update_items()?;
+        if &char.to_string() == "/" {
+            for (index, item) in self.items.iter().enumerate() {
+                if item.is_dir()
+                    && item
+                        .file_name()
+                        .map_or("", |name| name.to_str().unwrap_or(""))
+                        == self.path_mask
+                {
+                    self.state.select(Some(index));
+                    self.enter_dir()?;
+                    break;
+                }
+            }
+        } else {
+            self.path_mask += &char.to_string();
+            self.update_items()?;
+        }
         Ok(())
     }
 
@@ -211,6 +226,10 @@ impl PanelElement for FileExplorer {
                 ..
             } => match key_event.code {
                 KeyCode::BackTab => self.previous_entry(),
+                KeyCode::Char(char) => match self.add_to_mask(char) {
+                    Err(error) => println!("{error} occured during adding to mask!"),
+                    _ => (),
+                },
                 _ => (),
             },
             _ => (),
