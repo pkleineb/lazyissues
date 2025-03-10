@@ -1,7 +1,7 @@
 use std::{error::Error, sync::mpsc, thread};
 
+use lazyissues::{enable_logging, EventLoop, TerminalApp};
 use ratatui::crossterm::terminal::enable_raw_mode;
-use rust_issue_handler::{enable_logging, EventLoop, TerminalApp};
 
 fn main() -> Result<(), Box<dyn Error>> {
     enable_logging()?;

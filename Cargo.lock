@@ -744,6 +744,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lazyissues"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "env_logger",
+ "graphql_client",
+ "kdl",
+ "keyring",
+ "log",
+ "ratatui",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.159"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1208,23 +1225,6 @@ dependencies = [
  "spin",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rust_issue_handler"
-version = "0.1.0"
-dependencies = [
- "dirs",
- "env_logger",
- "graphql_client",
- "kdl",
- "keyring",
- "log",
- "ratatui",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
