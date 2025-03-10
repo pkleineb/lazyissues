@@ -128,6 +128,12 @@ impl TabMenu {
 
 impl PanelElement for TabMenu {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool {
+        for panel in self.ui_stack.iter_rev() {
+            if panel.handle_input(key_event) {
+                return true;
+            }
+        }
+
         match key_event {
             KeyEvent {
                 modifiers: KeyModifiers::NONE,

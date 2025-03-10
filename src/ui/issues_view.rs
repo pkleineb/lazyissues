@@ -15,20 +15,40 @@ pub struct IssuesView {
     layout_position: usize,
 
     issue_data: issue_query::IssueQueryRepository,
+    issue_amount: usize,
+    selected_issue: usize,
 }
 
 impl IssuesView {
     pub fn new(layout_position: usize, data: issue_query::IssueQueryRepository) -> Self {
         Self {
             layout_position,
+            issue_amount: data.issues.nodes.as_ref().unwrap_or(&vec![]).len(),
             issue_data: data,
+            selected_issue: 0,
         }
+    }
+
+    fn select_next_item(&mut self) {
+        self.selected_issue += 1;
+        if self.selected_issue >= self.issue_amount {
+            self.selected_issue = 0;
+        }
+    }
+
+    fn select_previous_item(&mut self) {
+        if self.selected_issue == 0 {
+            self.selected_issue = self.issue_amount - 1;
+            return;
+        }
+        self.selected_issue -= 1;
     }
 
     fn display_issue(
         issue_data: &issue_query::IssueQueryRepositoryIssuesNodes,
         render_frame: &mut ratatui::Frame,
         area: Rect,
+        is_highlighted: bool,
     ) {
         let status_style = if issue_data.closed {
             Style::default().fg(Color::Red)
@@ -37,9 +57,15 @@ impl IssuesView {
         };
         let status = if issue_data.closed { "✓" } else { "○" };
 
+        let issue_style = if is_highlighted {
+            Style::default().fg(Color::LightGreen)
+        } else {
+            Style::default()
+        };
+
         let outer_block = Block::default()
             .borders(Borders::ALL)
-            .style(Style::default())
+            .style(issue_style)
             .title(format!(
                 "[{} #{} {}]",
                 status, issue_data.number, issue_data.title
@@ -105,8 +131,30 @@ impl IssuesView {
 }
 
 impl PanelElement for IssuesView {
-    fn handle_input(&mut self, _key_event: ratatui::crossterm::event::KeyEvent) -> bool {
-        false
+    fn handle_input(&mut self, key_event: ratatui::crossterm::event::KeyEvent) -> bool {
+        match key_event {
+            KeyEvent {
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => match key_event.code {
+                KeyCode::Tab => {
+                    self.select_next_item();
+                    false
+                }
+                _ => false,
+            },
+            KeyEvent {
+                modifiers: KeyModifiers::SHIFT,
+                ..
+            } => match key_event.code {
+                KeyCode::BackTab => {
+                    self.select_previous_item();
+                    false
+                }
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     fn tick(&mut self) -> () {}
@@ -129,14 +177,16 @@ impl PanelElement for IssuesView {
                 .constraints(constraints)
                 .split(layout[self.layout_position]);
 
-            for (issue, chunk) in issues.iter().zip(chunks.iter()) {
+            for (i, (issue, chunk)) in issues.iter().zip(chunks.iter()).enumerate() {
                 if issue.is_none() {
                     continue;
                 }
 
+                let is_highlighted = i == self.selected_issue;
+
                 issue
                     .as_ref()
-                    .map(|node| Self::display_issue(node, render_frame, *chunk));
+                    .map(|node| Self::display_issue(node, render_frame, *chunk, is_highlighted));
             }
         }
     }
