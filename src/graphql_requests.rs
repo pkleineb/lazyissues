@@ -9,13 +9,11 @@ pub mod github {
     pub mod types {
         use serde::{Deserialize, Serialize};
 
-        use std::time::Duration;
-
         #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
         pub struct User(pub String);
 
         #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-        pub struct DateTime(pub Duration);
+        pub struct DateTime(pub String);
     }
 
     #[derive(GraphQLQuery)]
