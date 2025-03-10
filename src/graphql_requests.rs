@@ -50,7 +50,6 @@ pub mod github {
             .await?;
 
         let text = response.text().await?;
-        log::debug!("Server response was: {:?}", text);
         let response_body: Response<issue_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
         Ok(response_body.data)
     }

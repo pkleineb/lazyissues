@@ -152,7 +152,6 @@ impl Config {
             Err(error) => log::error!("{} occured during setting of access tokens", error),
         }
 
-        log::debug!("{:?}", config);
         Ok(config)
     }
 
