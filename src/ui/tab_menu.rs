@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::mpsc, thread};
+use std::{error::Error, rc::Rc, sync::mpsc, thread};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -8,10 +8,11 @@ use ratatui::{
     widgets::{Block, Borders, Tabs},
     Frame,
 };
+use regex::Regex;
 use tokio::runtime::Runtime;
 
 use crate::{
-    config::Config,
+    config::{self, Config},
     graphql_requests::github::{issue_query, perform_issue_query},
     ui::PanelElement,
     Signal,
@@ -105,24 +106,43 @@ impl TabMenu {
         }
     }
 
-    async fn fetch_issues(sender: mpsc::Sender<(MenuItem, QueryData)>, acces_token: String) {
+    fn send_issue_request(&self) -> Result<(), Box<dyn Error>> {
+        if self.config.github_token.is_none() {
+            log::info!("Github token not set.");
+            return Ok(());
+        }
+
+        let active_remote = config::git::get_active_remote()?;
+
+        let repo_regex = Regex::new(":(?<owner>.*)/(?<name>.*).git$")?;
+        let Some(repo_captures) = repo_regex.captures(&active_remote) else {
+            return Err("Couldn't capture owner or name for issue_query".into());
+        };
+
         let variables = issue_query::Variables {
-            repo_name: "test_repo".to_string(),
-            repo_owner: "pkleineb".to_string(),
+            repo_name: repo_captures["name"].to_string(),
+            repo_owner: repo_captures["owner"].to_string(),
         };
 
-        let response_data = perform_issue_query(variables, acces_token).await;
+        let cloned_sender = self.query_clone_sender.clone();
+        let cloned_access_token = self
+            .config
+            .github_token
+            .clone()
+            .expect("Access token already checked");
 
-        match response_data {
-            Ok(ok) => match ok {
-                Some(data) => match sender.send((MenuItem::Issues, QueryData::IssuesData(data))) {
-                    Err(error) => log::error!("{error} occured during sending of query data!"),
-                    _ => (),
-                },
-                None => log::debug!("No data fetched from server!"),
-            },
-            Err(error) => log::error!("{:?} occured during fetching data from server!", error),
-        };
+        thread::spawn(move || match Runtime::new() {
+            Ok(runtime) => {
+                runtime.block_on(async {
+                    match perform_issue_query(cloned_sender, variables, cloned_access_token).await {
+                        Err(error) => log::error!("issue_query returned an error. {}", error),
+                        _ => (),
+                    }
+                });
+            }
+            Err(error) => log::error!("Couldn't spawn runtime for issue_query. {}", error),
+        });
+        Ok(())
     }
 }
 
@@ -150,21 +170,7 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
-                    let cloned_sender = self.query_clone_sender.clone();
-                    let cloned_access_token = self.config.github_token.clone();
-
-                    thread::spawn(move || {
-                        let runtime = Runtime::new();
-                        match runtime {
-                            Ok(runtime) => runtime.block_on(async {
-                                match cloned_access_token {
-                                    Some(token) => Self::fetch_issues(cloned_sender, token).await,
-                                    None => log::error!("Github access token was not set."),
-                                }
-                            }),
-                            Err(error) => log::error!("{error} occured while creating runtime"),
-                        };
-                    });
+                    self.send_issue_request();
                 }
                 KeyCode::Char('P') => self.active_menu_item = MenuItem::PullRequests,
                 KeyCode::Char('A') => self.active_menu_item = MenuItem::Actions,

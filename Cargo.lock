@@ -754,6 +754,7 @@ dependencies = [
  "keyring",
  "log",
  "ratatui",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

@@ -9,7 +9,7 @@ use std::process::{Child, Command, Output};
 use std::time::Duration;
 use std::{env, fs};
 
-mod git;
+pub mod git;
 
 macro_rules! get_kdl_string_value_or_error {
     ($node:expr) => {

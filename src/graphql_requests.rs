@@ -1,8 +1,10 @@
 pub mod github {
-    use std::error::Error;
+    use std::{error::Error, sync::mpsc};
 
     use graphql_client::{GraphQLQuery, Response};
     use reqwest::header;
+
+    use crate::ui::tab_menu::{MenuItem, QueryData};
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
 
@@ -26,9 +28,10 @@ pub mod github {
     pub struct IssueQuery;
 
     pub async fn perform_issue_query(
+        response_sender: mpsc::Sender<(MenuItem, QueryData)>,
         variables: issue_query::Variables,
         access_token: String,
-    ) -> Result<Option<issue_query::ResponseData>, Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         let request_body = IssueQuery::build_query(variables);
 
         let client = reqwest::Client::builder()
@@ -51,6 +54,14 @@ pub mod github {
 
         let text = response.text().await?;
         let response_body: Response<issue_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
-        Ok(response_body.data)
+
+        match response_body.data {
+            Some(data) => {
+                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
+                // it doesn't seem so
+                Ok(response_sender.send((MenuItem::Issues, QueryData::IssuesData(data)))?)
+            }
+            None => Err("No response data returned.".into()),
+        }
     }
 }
