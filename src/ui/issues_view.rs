@@ -1,15 +1,14 @@
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Flex, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
-    Frame,
+    style::{Color, Style},
+    text::Span,
+    widgets::{Block, Borders, Paragraph},
 };
 
 use crate::graphql_requests::github::issue_query;
 
-use super::{tab_menu::MenuItem, PanelElement};
+use super::PanelElement;
 
 pub struct IssuesView {
     layout_position: usize,

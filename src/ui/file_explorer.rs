@@ -1,7 +1,5 @@
 use std::{
-    ffi::OsStr,
-    fs::{self, File},
-    io::{self, Write},
+    fs, io,
     path::PathBuf,
     rc::Rc,
     time::{Duration, Instant},

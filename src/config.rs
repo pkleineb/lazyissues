@@ -1,12 +1,11 @@
-use dirs::{config_local_dir, home_dir};
-use kdl::{KdlDocument, KdlNode};
+use dirs::config_local_dir;
+use kdl::KdlDocument;
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use std::fs::File;
-use std::io::{Error as IoError, Read, Write};
+use std::io::{Error as IoError, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Output};
 use std::time::Duration;
 use std::{env, fs};
 

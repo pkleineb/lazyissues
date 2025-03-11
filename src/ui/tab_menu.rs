@@ -1,11 +1,11 @@
-use std::{collections::HashMap, rc::Rc, sync::mpsc, thread};
+use std::{rc::Rc, sync::mpsc, thread};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, Tabs},
+    widgets::{Block, Borders, Tabs},
     Frame,
 };
 use tokio::runtime::Runtime;
