@@ -170,7 +170,12 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
-                    self.send_issue_request();
+                    match self.send_issue_request() {
+                        Err(error) => {
+                            log::error!("{} occured during sending of issue request", error);
+                        }
+                        _ => (),
+                    }
                 }
                 KeyCode::Char('P') => self.active_menu_item = MenuItem::PullRequests,
                 KeyCode::Char('A') => self.active_menu_item = MenuItem::Actions,
