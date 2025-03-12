@@ -2,8 +2,8 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use ratatui::{crossterm::event::KeyEvent, layout::Rect, Frame};
 
-pub mod file_explorer;
 pub mod issues_view;
+pub mod remote_explorer;
 pub mod tab_menu;
 
 pub trait PanelElement {

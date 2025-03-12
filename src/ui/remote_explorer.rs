@@ -2,6 +2,7 @@ use std::{
     fs, io,
     path::PathBuf,
     rc::Rc,
+    sync::mpsc,
     time::{Duration, Instant},
 };
 
@@ -13,12 +14,11 @@ use ratatui::{
     Frame,
 };
 
-use crate::{create_floating_layout, ui::PanelElement};
+use crate::{config, create_floating_layout, ui::PanelElement};
 
-pub struct FileExplorer {
-    current_path: PathBuf,
-    path_mask: String,
-    items: Vec<PathBuf>,
+pub struct RemoteExplorer {
+    remote_mask: String,
+    items: Vec<String>,
     state: ListState,
 
     layout_position: usize,
@@ -26,14 +26,17 @@ pub struct FileExplorer {
     cursor_flicker_delay: Duration,
     last_cursor_flicker: Instant,
     cursor_rendered_last_flicker: bool,
+
+    remote_sender: mpsc::Sender<String>,
 }
 
-impl FileExplorer {
-    pub fn new(layout_position: usize) -> io::Result<Self> {
-        let current_path = std::env::current_dir()?;
+impl RemoteExplorer {
+    pub fn new(
+        layout_position: usize,
+        remote_sender: mpsc::Sender<String>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut explorer = Self {
-            current_path,
-            path_mask: String::from(""),
+            remote_mask: String::from(""),
             items: Vec::new(),
             state: ListState::default(),
 
@@ -42,45 +45,23 @@ impl FileExplorer {
             cursor_flicker_delay: Duration::from_millis(300),
             last_cursor_flicker: Instant::now(),
             cursor_rendered_last_flicker: false,
+
+            remote_sender,
         };
         explorer.update_items()?;
         Ok(explorer)
     }
 
-    fn items_as_str(&self) -> Vec<String> {
-        self.items
-            .iter()
-            .map(|path| String::from(path.to_str().unwrap_or("")))
-            .collect()
-    }
-
-    fn update_items(&mut self) -> io::Result<()> {
-        self.items = fs::read_dir(&self.current_path)?
-            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|entry| self.compare_entry_to_mask(entry.to_str().unwrap_or_default()))
+    fn update_items(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.items = config::git::get_remote_urls()?
+            .into_iter()
+            .filter(|entry| self.compare_entry_to_mask(entry))
             .collect();
 
         self.items.sort();
         self.items.insert(0, "..".into());
         self.state.select(Some(0));
         Ok(())
-    }
-
-    fn enter_dir(&mut self) -> io::Result<()> {
-        match self.state.selected() {
-            Some(selected) => {
-                let path = &self.items[selected];
-                if path.to_str().unwrap_or_default() == ".." {
-                    self.go_down_dir()?;
-                } else if path.is_dir() {
-                    self.current_path = path.clone();
-                    self.clear_mask();
-                    self.update_items()?;
-                }
-                Ok(())
-            }
-            None => Ok(()),
-        }
     }
 
     fn next_entry(&mut self) {
@@ -112,72 +93,32 @@ impl FileExplorer {
     }
 
     fn compare_entry_to_mask(&self, entry: &str) -> bool {
-        if entry.contains(
-            &(self.current_path.to_str().unwrap_or_default().to_owned() + "/" + &self.path_mask),
-        ) {
+        if entry.contains(&self.remote_mask) {
             return true;
         }
 
         false
     }
 
-    fn add_to_mask(&mut self, char: char) -> io::Result<()> {
-        if &char.to_string() == "/" {
-            for (index, item) in self.items.iter().enumerate() {
-                if item.is_dir()
-                    && item
-                        .file_name()
-                        .map_or("", |name| name.to_str().unwrap_or(""))
-                        == self.path_mask
-                {
-                    self.state.select(Some(index));
-                    self.enter_dir()?;
-                    break;
-                }
-            }
-        } else {
-            self.path_mask += &char.to_string();
-            self.update_items()?;
-        }
+    fn add_to_mask(&mut self, char: char) -> Result<(), Box<dyn std::error::Error>> {
+        self.remote_mask += &char.to_string();
+        self.update_items()?;
         Ok(())
     }
 
-    fn remove_from_mask(&mut self) -> io::Result<()> {
-        if self.path_mask.len() == 0 {
-            self.go_down_dir()?;
+    fn remove_from_mask(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.remote_mask.len() == 0 {
             return Ok(());
         }
 
-        self.path_mask.remove(self.path_mask.len() - 1);
+        self.remote_mask.remove(self.remote_mask.len() - 1);
 
         self.update_items()?;
-        Ok(())
-    }
-
-    fn go_down_dir(&mut self) -> io::Result<()> {
-        match self.current_path.parent() {
-            Some(parent_path) => {
-                let new_mask = self
-                    .current_path
-                    .to_str()
-                    .unwrap_or_default()
-                    .split("/")
-                    .last()
-                    .unwrap_or_default();
-                self.path_mask = String::from(new_mask);
-
-                self.current_path = parent_path.to_path_buf();
-            }
-            _ => (),
-        }
-
-        self.update_items()?;
-
         Ok(())
     }
 
     fn clear_mask(&mut self) {
-        self.path_mask.clear();
+        self.remote_mask.clear();
     }
 
     fn render_cursor(&mut self) -> &str {
@@ -195,9 +136,19 @@ impl FileExplorer {
             return " ";
         }
     }
+
+    fn select_remote(&self) -> Result<(), Box<dyn std::error::Error>> {
+        match self.state.selected() {
+            Some(index) => match self.items.get(index) {
+                Some(selected_remote) => Ok(self.remote_sender.send(selected_remote.clone())?),
+                None => Err("Selected index of remote is out of bounds.".into()),
+            },
+            None => Err("Tried to select remote while there was no selection.".into()),
+        }
+    }
 }
 
-impl PanelElement for FileExplorer {
+impl PanelElement for RemoteExplorer {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool {
         match key_event {
             KeyEvent {
@@ -205,16 +156,16 @@ impl PanelElement for FileExplorer {
                 ..
             } => match key_event.code {
                 KeyCode::Tab => self.next_entry(),
-                KeyCode::Enter => match self.enter_dir() {
-                    Err(error) => println!("{error} occured during switching directory!"),
+                KeyCode::Enter => match self.select_remote() {
+                    Err(error) => log::error!("{} occured on selecting remote!", error),
                     _ => (),
                 },
                 KeyCode::Char(char) => match self.add_to_mask(char) {
-                    Err(error) => println!("{error} occured during adding to mask!"),
+                    Err(error) => log::error!("{} occured during adding to mask!", error),
                     _ => (),
                 },
                 KeyCode::Backspace => match self.remove_from_mask() {
-                    Err(error) => println!("{error} occured during removing from mask!"),
+                    Err(error) => log::error!("{} occured on removing from mask!", error),
                     _ => (),
                 },
                 _ => (),
@@ -225,7 +176,7 @@ impl PanelElement for FileExplorer {
             } => match key_event.code {
                 KeyCode::BackTab => self.previous_entry(),
                 KeyCode::Char(char) => match self.add_to_mask(char) {
-                    Err(error) => println!("{error} occured during adding to mask!"),
+                    Err(error) => log::error!("{} occured during adding to mask!", error),
                     _ => (),
                 },
                 _ => (),
@@ -237,16 +188,16 @@ impl PanelElement for FileExplorer {
     }
 
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) {
-        let directory_items = self.items_as_str();
+        let directory_items = self.items.clone();
 
         let display_rect = List::new(directory_items)
             .highlight_style(Style::default().bg(Color::DarkGray))
             .block(
                 Block::default()
                     .title(
-                        self.current_path.to_str().unwrap_or("path").to_owned()
+                        self.remote_mask.to_owned()
                             + "/"
-                            + &self.path_mask
+                            + &self.remote_mask
                             + self.render_cursor(),
                     )
                     .borders(Borders::ALL),
