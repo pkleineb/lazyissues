@@ -1,7 +1,8 @@
 use dirs::config_local_dir;
-use kdl::KdlDocument;
+use kdl::{KdlDocument, KdlNode};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Error as IoError, Write};
 use std::path::PathBuf;
@@ -34,6 +35,16 @@ macro_rules! get_first_entry_as_string {
     };
 }
 
+macro_rules! get_entries_as_string_vec {
+    ($node:expr) => {
+        $node
+            .entries()
+            .iter()
+            .filter_map(|node| node.value().as_string())
+            .collect()
+    };
+}
+
 macro_rules! get_first_entry_as_PathBuf {
     ($node:expr) => {
         $node.entries().first().map_or(None, |entry| {
@@ -52,6 +63,10 @@ macro_rules! get_first_entry_as_int {
             .first()
             .map_or(None, |entry| entry.value().as_integer())
     };
+}
+
+macro_rules! get_children_as_vec_str {
+    () => {};
 }
 
 macro_rules! read_token_file_backend {
@@ -82,11 +97,21 @@ macro_rules! report_error_to_log {
 pub const CONFIG_NAME: &str = "config.kdl";
 pub const CONFIG_DIR_NAME: &str = "lazyissues";
 
+pub const STATE_NAME: &str = "state.kdl";
+
 pub fn get_config_file() -> PathBuf {
     config_local_dir()
         .unwrap_or(PathBuf::default())
         .join(CONFIG_DIR_NAME)
         .join(CONFIG_NAME)
+        .to_owned()
+}
+
+pub fn get_state_file() -> PathBuf {
+    config_local_dir()
+        .unwrap_or(PathBuf::default())
+        .join(CONFIG_DIR_NAME)
+        .join(STATE_NAME)
         .to_owned()
 }
 
@@ -270,5 +295,138 @@ impl Config {
 
         child.kill()?;
         Err("Credentialhelper timed out".into())
+    }
+}
+
+pub enum StateOption {
+    Repository,
+}
+
+pub struct State {
+    //               <local repo path, active remote>
+    repository_state: HashMap<PathBuf, String>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            repository_state: HashMap::new(),
+        }
+    }
+}
+
+impl State {
+    pub fn get() -> std::io::Result<Self> {
+        let kdl_str = fs::read_to_string(get_state_file())?;
+        Self::from_kdl_str(&kdl_str)
+    }
+
+    fn from_kdl_str(kdl_str: &str) -> Result<Self, IoError> {
+        let kdl_state = KdlDocument::parse(kdl_str).map_err(|e| {
+            IoError::new(
+                std::io::ErrorKind::InvalidData,
+                format!("KDL parse error: {}", e),
+            )
+        })?;
+
+        let mut state = Self::default();
+
+        for node in kdl_state.nodes() {
+            match state.apply_option(&kdl_state, node.name().value()) {
+                Err(error) => log::error!("{} occured while parsing config", error),
+                _ => (),
+            }
+        }
+
+        Ok(state)
+    }
+
+    fn apply_option(
+        &mut self,
+        parent_node: &KdlDocument,
+        option_name: &str,
+    ) -> Result<(), IoError> {
+        let option_node = parent_node.get(option_name);
+
+        match option_node {
+            Some(node) => match option_name {
+                "repositories" => self.read_repositories(node),
+                _ => {
+                    log::debug!("Option: {} is not a recognized option", option_name);
+                }
+            },
+            _ => {
+                log::debug!(
+                    "Option: {} is not a child of node: {:?}",
+                    option_name,
+                    parent_node
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn read_repositories(&mut self, repositories_node: &KdlNode) {
+        for child in repositories_node.iter_children() {
+            match child.name().value() {
+                "repo" => {
+                    let entries: Vec<&str> = get_entries_as_string_vec!(child);
+                    if entries.len() < 2 {
+                        log::warn!("repo tag is malformed. Missing either local repo path, active remote or both: {:?}", child);
+                        continue;
+                    }
+
+                    let repo_path = PathBuf::from(entries[0]);
+                    let active_remote = entries[1];
+
+                    self.repository_state
+                        .insert(repo_path, active_remote.to_string());
+                }
+                _ => (),
+            }
+        }
+    }
+
+    pub fn set(&mut self, option: StateOption, arguments: Vec<&str>) -> std::io::Result<()> {
+        match option {
+            StateOption::Repository => {
+                if arguments.len() < 2 {
+                    log::debug!("Adding repository to state needs two arguments: local repo path and active remote");
+                    return Ok(());
+                }
+
+                let repo_path = PathBuf::from(arguments[0]);
+                let active_remote = arguments[1];
+
+                self.repository_state
+                    .insert(repo_path, active_remote.to_string());
+            }
+        }
+
+        self.write_to_kdl()?;
+
+        Ok(())
+    }
+
+    fn write_to_kdl(&self) -> std::io::Result<()> {
+        let mut kdl_state = KdlDocument::new();
+
+        let mut repositories_node = KdlNode::new("repositories");
+        let mut repositories_children = KdlDocument::new();
+        for (local_path, remote) in self.repository_state.iter() {
+            let mut repo_node = KdlNode::new("repo");
+
+            repo_node.push(local_path.to_str().unwrap_or(""));
+            repo_node.push(remote.clone());
+
+            repositories_children.nodes_mut().push(repo_node);
+        }
+
+        repositories_node.set_children(repositories_children);
+        kdl_state.nodes_mut().push(repositories_node);
+
+        fs::write(get_state_file(), kdl_state.to_string())?;
+
+        Ok(())
     }
 }
