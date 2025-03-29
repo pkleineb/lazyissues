@@ -23,7 +23,7 @@ use ratatui::{
     prelude::CrosstermBackend,
     Frame, Terminal,
 };
-use ui::UiStack;
+use ui::{tab_menu::TabMenu, PanelElement};
 
 mod config;
 mod graphql_requests;
@@ -158,21 +158,22 @@ impl TerminalApp {
             return;
         }
 
-        let mut ui_stack = self.create_ui(UiStack::new());
+        let mut menu = match TabMenu::new(0, self.config.clone()) {
+            Ok(menu) => menu,
+            Err(error) => {
+                log::error!("{} occured during creation of TabMenu.", error);
+                return;
+            }
+        };
 
         loop {
-            // we call tick for every panel so they can try and receive their data
-            // revers since we need to draw the bottom most element first
-            for panel in ui_stack.iter_rev() {
-                panel.tick();
-            }
+            // we call tick for the menu so it can try and receive data
+            menu.tick();
 
             let draw_success = self.terminal.draw(|render_frame| {
                 let layout = Self::create_base_layout(render_frame);
 
-                for panel in ui_stack.iter() {
-                    panel.render(render_frame, &layout)
-                }
+                menu.render(render_frame, &layout)
             });
 
             if let Err(error) = draw_success {
@@ -186,11 +187,7 @@ impl TerminalApp {
                 Ok(event) => match event {
                     Event::Input(event) => match event {
                         CrossEvent::Key(key) => {
-                            for panel in ui_stack.iter() {
-                                if panel.handle_input(key) {
-                                    break;
-                                }
-                            }
+                            menu.handle_input(key);
                         }
                         _ => (),
                     },
@@ -209,19 +206,6 @@ impl TerminalApp {
                 break;
             }
         }
-    }
-
-    fn create_ui(&self, mut ui_stack: UiStack) -> UiStack {
-        let tab_menu =
-            ui::tab_menu::TabMenu::new(0, self.signal_sender_cloner.clone(), self.config.clone());
-        ui_stack.add_panel(tab_menu, 10);
-
-        //match ui::file_explorer::FileExplorer::new(1) {
-        //    Ok(explorer) => ui_stack.add_panel(explorer, 0),
-        //    Err(error) => println!("{error} occured during creation of file explorer!"),
-        //}
-
-        ui_stack
     }
 
     fn create_base_layout(render_frame: &mut Frame) -> Rc<[Rect]> {
