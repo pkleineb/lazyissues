@@ -316,7 +316,7 @@ impl Default for State {
 }
 
 impl State {
-    pub fn get() -> std::io::Result<Self> {
+    pub fn read() -> std::io::Result<Self> {
         let kdl_str = fs::read_to_string(get_state_file())?;
         Self::from_kdl_str(&kdl_str)
     }
@@ -387,22 +387,16 @@ impl State {
         }
     }
 
-    pub fn set(&mut self, option: StateOption, arguments: Vec<&str>) -> std::io::Result<()> {
-        match option {
-            StateOption::Repository => {
-                if arguments.len() < 2 {
-                    log::debug!("Adding repository to state needs two arguments: local repo path and active remote");
-                    return Ok(());
-                }
+    pub fn get_repository_data(&self, repo_root: &PathBuf) -> Option<String> {
+        self.repository_state.get(repo_root).cloned()
+    }
 
-                let repo_path = PathBuf::from(arguments[0]);
-                let active_remote = arguments[1];
-
-                self.repository_state
-                    .insert(repo_path, active_remote.to_string());
-            }
-        }
-
+    pub fn set_repository_data(
+        &mut self,
+        repo_root: PathBuf,
+        active_remote: String,
+    ) -> std::io::Result<()> {
+        self.repository_state.insert(repo_root, active_remote);
         self.write_to_kdl()?;
 
         Ok(())
