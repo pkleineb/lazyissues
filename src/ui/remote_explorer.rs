@@ -16,6 +16,8 @@ use ratatui::{
 
 use crate::{config, create_floating_layout, ui::PanelElement};
 
+use super::tab_menu::RepoData;
+
 pub struct RemoteExplorer {
     remote_mask: String,
     items: Vec<String>,
@@ -27,14 +29,14 @@ pub struct RemoteExplorer {
     last_cursor_flicker: Instant,
     cursor_rendered_last_flicker: bool,
 
-    remote_sender: mpsc::Sender<String>,
+    remote_sender: mpsc::Sender<RepoData>,
 }
 
 impl RemoteExplorer {
     pub fn new(
         layout_position: usize,
-        remote_sender: mpsc::Sender<String>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+        remote_sender: mpsc::Sender<RepoData>,
+    ) -> Result<Self, git2::Error> {
         let mut explorer = Self {
             remote_mask: String::from(""),
             items: Vec::new(),
@@ -52,14 +54,13 @@ impl RemoteExplorer {
         Ok(explorer)
     }
 
-    fn update_items(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn update_items(&mut self) -> Result<(), git2::Error> {
         self.items = config::git::get_remote_urls()?
             .into_iter()
             .filter(|entry| self.compare_entry_to_mask(entry))
             .collect();
 
         self.items.sort();
-        self.items.insert(0, "..".into());
         self.state.select(Some(0));
         Ok(())
     }
@@ -140,7 +141,9 @@ impl RemoteExplorer {
     fn select_remote(&self) -> Result<(), Box<dyn std::error::Error>> {
         match self.state.selected() {
             Some(index) => match self.items.get(index) {
-                Some(selected_remote) => Ok(self.remote_sender.send(selected_remote.clone())?),
+                Some(selected_remote) => Ok(self
+                    .remote_sender
+                    .send(RepoData::ActiveRemoteData(selected_remote.clone()))?),
                 None => Err("Selected index of remote is out of bounds.".into()),
             },
             None => Err("Tried to select remote while there was no selection.".into()),
@@ -184,7 +187,7 @@ impl PanelElement for RemoteExplorer {
             _ => (),
         }
 
-        false
+        true
     }
 
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) {
@@ -194,12 +197,7 @@ impl PanelElement for RemoteExplorer {
             .highlight_style(Style::default().bg(Color::DarkGray))
             .block(
                 Block::default()
-                    .title(
-                        self.remote_mask.to_owned()
-                            + "/"
-                            + &self.remote_mask
-                            + self.render_cursor(),
-                    )
+                    .title(self.remote_mask.to_owned() + self.render_cursor())
                     .borders(Borders::ALL),
             )
             .style(Style::default().fg(Color::White));

@@ -1,4 +1,4 @@
-use std::{error::Error, rc::Rc, sync::mpsc, thread};
+use std::{error::Error, path::PathBuf, rc::Rc, sync::mpsc, thread};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -12,13 +12,16 @@ use regex::Regex;
 use tokio::runtime::Runtime;
 
 use crate::{
-    config::{self, Config},
+    config::{
+        self,
+        git::{self, get_git_repo_root},
+        Config, State, StateOption,
+    },
     graphql_requests::github::{issue_query, perform_issue_query},
     ui::PanelElement,
-    Signal,
 };
 
-use super::{issues_view::IssuesView, UiStack};
+use super::{issues_view::IssuesView, remote_explorer::RemoteExplorer, UiStack};
 
 #[derive(Hash, PartialEq, Eq)]
 pub enum MenuItem {
@@ -82,6 +85,10 @@ pub struct TabMenu {
     data_response_data: Vec<RepoData>,
 
     config: Config,
+    state: State,
+
+    repo_root: PathBuf,
+    active_remote: Option<String>,
 
     ui_stack: UiStack,
 
@@ -89,23 +96,43 @@ pub struct TabMenu {
 }
 
 impl TabMenu {
-    pub fn new(
-        layout_position: usize,
-        signal_sender: mpsc::Sender<Signal>,
-        config: Config,
-    ) -> Self {
-        let (query_clone_sender, query_receiver) = mpsc::channel();
+    pub fn new(layout_position: usize, config: Config) -> Result<Self, git2::Error> {
+        let (data_clone_sender, data_receiver) = mpsc::channel();
 
-        Self {
+        let state = match State::read() {
+            Ok(state) => state,
+            Err(error) => {
+                log::error!(
+                    "Error {} occured while fetching state. Using default state",
+                    error
+                );
+                State::default()
+            }
+        };
+
+        let repo_root = get_git_repo_root()?;
+        let active_remote = state.get_repository_data(&repo_root);
+
+        let mut tab_menu = Self {
             active_menu_item: MenuItem::Issues,
             layout_position,
             data_receiver,
             data_clone_sender,
             data_response_data: vec![],
             config,
+            state,
+            repo_root,
+            active_remote,
             ui_stack: UiStack::new(),
             quit: false,
         };
+
+        tab_menu.ui_stack.add_panel(
+            RemoteExplorer::new(1, tab_menu.data_clone_sender.clone())?,
+            tab_menu.ui_stack.get_highest_priority() + 1,
+        );
+
+        Ok(tab_menu)
     }
 
     pub fn wants_to_quit(&self) -> bool {
@@ -253,6 +280,19 @@ impl PanelElement for TabMenu {
                             log::debug!("Couldn't display issues since there was no repository")
                         }
                     }
+                }
+                RepoData::ActiveRemoteData(remote) => {
+                    match self
+                        .state
+                        .set_repository_data(self.repo_root.clone(), remote.clone())
+                    {
+                        Err(error) => {
+                            log::error!("{} occured during setting of active remote", error)
+                        }
+                        _ => (),
+                    }
+                    self.active_remote = Some(remote);
+                    self.ui_stack.remove_highest_priority_panel();
                 }
             }
         }
