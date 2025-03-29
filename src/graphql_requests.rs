@@ -4,7 +4,7 @@ pub mod github {
     use graphql_client::{GraphQLQuery, Response};
     use reqwest::header;
 
-    use crate::ui::tab_menu::{MenuItem, QueryData};
+    use crate::ui::tab_menu::RepoData;
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
 
@@ -28,7 +28,7 @@ pub mod github {
     pub struct IssueQuery;
 
     pub async fn perform_issue_query(
-        response_sender: mpsc::Sender<(MenuItem, QueryData)>,
+        response_sender: mpsc::Sender<RepoData>,
         variables: issue_query::Variables,
         access_token: String,
     ) -> Result<(), Box<dyn Error>> {
@@ -59,7 +59,7 @@ pub mod github {
             Some(data) => {
                 // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
                 // it doesn't seem so
-                Ok(response_sender.send((MenuItem::Issues, QueryData::IssuesData(data)))?)
+                Ok(response_sender.send(RepoData::IssuesData(data))?)
             }
             None => Err("No response data returned.".into()),
         }

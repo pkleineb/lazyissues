@@ -64,7 +64,9 @@ impl MenuItem {
     }
 }
 
-pub enum QueryData {
+pub enum RepoData {
+    ActiveRemoteData(String),
+
     IssuesData(issue_query::ResponseData),
 }
 
@@ -73,13 +75,11 @@ pub struct TabMenu {
 
     layout_position: usize,
 
-    query_receiver: mpsc::Receiver<(MenuItem, QueryData)>,
-    query_clone_sender: mpsc::Sender<(MenuItem, QueryData)>,
+    data_receiver: mpsc::Receiver<RepoData>,
+    data_clone_sender: mpsc::Sender<RepoData>,
 
     // this might be a stupid way to store this
-    query_response_data: Vec<(MenuItem, QueryData)>,
-
-    signal_sender: mpsc::Sender<Signal>,
+    data_response_data: Vec<RepoData>,
 
     config: Config,
 
@@ -99,13 +99,13 @@ impl TabMenu {
         Self {
             active_menu_item: MenuItem::Issues,
             layout_position,
-            query_receiver,
-            query_clone_sender,
-            query_response_data: vec![],
-            signal_sender,
+            data_receiver,
+            data_clone_sender,
+            data_response_data: vec![],
             config,
             ui_stack: UiStack::new(),
-        }
+            quit: false,
+        };
     }
 
     pub fn wants_to_quit(&self) -> bool {
@@ -130,7 +130,7 @@ impl TabMenu {
             repo_owner: repo_captures["owner"].to_string(),
         };
 
-        let cloned_sender = self.query_clone_sender.clone();
+        let cloned_sender = self.data_clone_sender.clone();
         let cloned_access_token = self
             .config
             .github_token
@@ -232,25 +232,28 @@ impl PanelElement for TabMenu {
         // try_recv does not block the current thread which is nice here because we don't
         // have a tick signal recv() would block the thread until we receive a message from
         // the sender I am ignoring the error here but that may not be best practice
-        if let Ok(data) = self.query_receiver.try_recv() {
-            let (key, value) = data;
-            self.query_response_data.push((key, value));
+        if let Ok(data) = self.data_receiver.try_recv() {
+            self.data_response_data.push(data);
         }
 
-        for (menu_item, query_data) in self.query_response_data.drain(..) {
-            if menu_item != self.active_menu_item {
-                continue;
-            }
+        for data in self.data_response_data.drain(..) {
+            match data {
+                RepoData::IssuesData(data) => {
+                    if self.active_menu_item != MenuItem::Issues {
+                        continue;
+                    };
 
-            match query_data {
-                QueryData::IssuesData(data) => match data.repository {
-                    Some(repo_data) => {
-                        let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        self.ui_stack
-                            .add_panel(IssuesView::new(1, repo_data), top_priority);
+                    match data.repository {
+                        Some(repo_data) => {
+                            let top_priority = self.ui_stack.get_highest_priority() + 1;
+                            self.ui_stack
+                                .add_panel(IssuesView::new(1, repo_data), top_priority);
+                        }
+                        None => {
+                            log::debug!("Couldn't display issues since there was no repository")
+                        }
                     }
-                    None => log::debug!("Couldn't display issues since there was no repository"),
-                },
+                }
             }
         }
     }
