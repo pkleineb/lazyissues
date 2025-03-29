@@ -84,6 +84,8 @@ pub struct TabMenu {
     config: Config,
 
     ui_stack: UiStack,
+
+    quit: bool,
 }
 
 impl TabMenu {
@@ -104,6 +106,10 @@ impl TabMenu {
             config,
             ui_stack: UiStack::new(),
         }
+    }
+
+    pub fn wants_to_quit(&self) -> bool {
+        self.quit
     }
 
     fn send_issue_request(&self) -> Result<(), Box<dyn Error>> {
@@ -159,9 +165,7 @@ impl PanelElement for TabMenu {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => match key_event.code {
-                KeyCode::Char('q') => {
-                    let _ = self.signal_sender.send(Signal::Quit);
-                }
+                KeyCode::Char('q') => self.quit = true,
                 _ => (),
             },
             KeyEvent {

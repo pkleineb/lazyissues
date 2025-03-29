@@ -65,11 +65,6 @@ pub enum Event<I> {
     Tick,
 }
 
-pub enum Signal {
-    Quit,
-    ErrorOccured(String),
-}
-
 pub struct EventLoop {
     sender: mpsc::Sender<Event<CrossEvent>>,
     last_tick: Instant,
@@ -130,9 +125,6 @@ impl EventLoop {
 pub struct TerminalApp {
     input_receiver: mpsc::Receiver<Event<CrossEvent>>,
 
-    signal_sender_cloner: mpsc::Sender<Signal>,
-    signal_receiver: mpsc::Receiver<Signal>,
-
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
     config: Config,
 }
@@ -142,7 +134,6 @@ impl TerminalApp {
         let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
-        let (signal_sender_cloner, signal_receiver) = mpsc::channel();
 
         let config = match Config::from_config_file() {
             Ok(config) => config,
@@ -154,8 +145,6 @@ impl TerminalApp {
 
         Ok(Self {
             input_receiver,
-            signal_sender_cloner,
-            signal_receiver,
             terminal,
             config,
         })
@@ -215,14 +204,9 @@ impl TerminalApp {
                 }
             };
 
-            if let Ok(signal) = self.signal_receiver.try_recv() {
-                match signal {
-                    Signal::Quit => {
-                        self.clean_up_terminal(None);
-                        break;
-                    }
-                    Signal::ErrorOccured(_message) => {}
-                }
+            if menu.wants_to_quit() {
+                self.clean_up_terminal(None);
+                break;
             }
         }
     }
