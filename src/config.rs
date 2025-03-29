@@ -298,10 +298,6 @@ impl Config {
     }
 }
 
-pub enum StateOption {
-    Repository,
-}
-
 pub struct State {
     //               <local repo path, active remote>
     repository_state: HashMap<PathBuf, String>,

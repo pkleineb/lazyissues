@@ -12,11 +12,7 @@ use regex::Regex;
 use tokio::runtime::Runtime;
 
 use crate::{
-    config::{
-        self,
-        git::{self, get_git_repo_root},
-        Config, State, StateOption,
-    },
+    config::{self, git::get_git_repo_root, Config, State},
     graphql_requests::github::{issue_query, perform_issue_query},
     ui::PanelElement,
 };
