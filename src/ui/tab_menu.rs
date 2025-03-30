@@ -141,10 +141,17 @@ impl TabMenu {
             return Ok(());
         }
 
-        let active_remote = config::git::get_active_remote()?;
+        if self.active_remote.is_none() {
+            log::info!("No active remote set for repository.");
+            return Ok(());
+        }
 
         let repo_regex = Regex::new(":(?<owner>.*)/(?<name>.*).git$")?;
-        let Some(repo_captures) = repo_regex.captures(&active_remote) else {
+        let active_remote = self
+            .active_remote
+            .as_ref()
+            .expect("active_remote already checked");
+        let Some(repo_captures) = repo_regex.captures(active_remote) else {
             return Err("Couldn't capture owner or name for issue_query".into());
         };
 
