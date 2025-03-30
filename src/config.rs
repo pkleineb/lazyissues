@@ -317,7 +317,7 @@ impl State {
         Self::from_kdl_str(&kdl_str)
     }
 
-    fn from_kdl_str(kdl_str: &str) -> Result<Self, IoError> {
+    fn from_kdl_str(kdl_str: &str) -> std::io::Result<Self> {
         let kdl_state = KdlDocument::parse(kdl_str).map_err(|e| {
             IoError::new(
                 std::io::ErrorKind::InvalidData,
