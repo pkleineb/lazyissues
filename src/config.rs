@@ -1,5 +1,5 @@
 use dirs::config_local_dir;
-use kdl::{KdlDocument, KdlNode};
+use kdl::{KdlDocument, KdlNode, KdlNodeFormat};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -402,9 +402,19 @@ impl State {
         let mut kdl_state = KdlDocument::new();
 
         let mut repositories_node = KdlNode::new("repositories");
+        let mut repositories_node_fmt = KdlNodeFormat::default();
+        repositories_node_fmt.trailing = "\n".to_string();
+        repositories_node_fmt.before_children = " ".to_string();
+        repositories_node.set_format(repositories_node_fmt);
+
         let mut repositories_children = KdlDocument::new();
+
         for (local_path, remote) in self.repository_state.iter() {
             let mut repo_node = KdlNode::new("repo");
+            let mut node_fmt = KdlNodeFormat::default();
+            node_fmt.leading = "    ".to_string();
+            node_fmt.trailing = "\n".to_string();
+            repo_node.set_format(node_fmt);
 
             repo_node.push(local_path.to_str().unwrap_or(""));
             repo_node.push(remote.clone());
