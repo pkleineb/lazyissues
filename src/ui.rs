@@ -76,6 +76,22 @@ impl UiStack {
         self.panel_names.keys().collect()
     }
 
+    pub fn get_panel_ref_by_name(&self, name: &str) -> Option<&Box<dyn PanelElement>> {
+        if let Some(&priority) = self.panel_names.get(name) {
+            return self.panels.get(&priority);
+        }
+
+        None
+    }
+
+    pub fn get_panel_mut_ref_by_name(&mut self, name: &str) -> Option<&mut Box<dyn PanelElement>> {
+        if let Some(&priority) = self.panel_names.get(name) {
+            return self.panels.get_mut(&priority);
+        }
+
+        None
+    }
+
     pub fn iter(&mut self) -> impl Iterator<Item = &mut Box<dyn PanelElement>> {
         self.panels.values_mut()
     }
