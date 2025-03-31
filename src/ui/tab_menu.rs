@@ -17,7 +17,11 @@ use crate::{
     ui::PanelElement,
 };
 
-use super::{issues_view::IssuesView, remote_explorer::RemoteExplorer, UiStack};
+use super::{
+    issues_view::{IssuesView, ISSUES_VIEW_NAME},
+    remote_explorer::{RemoteExplorer, REMOTE_EXPLORER_NAME},
+    UiStack,
+};
 
 #[derive(Hash, PartialEq, Eq)]
 pub enum MenuItem {
@@ -143,6 +147,7 @@ impl TabMenu {
         self.ui_stack.add_panel(
             RemoteExplorer::new(1, self.data_clone_sender.clone())?,
             self.ui_stack.get_highest_priority() + 1,
+            REMOTE_EXPLORER_NAME,
         );
 
         Ok(())
@@ -320,7 +325,7 @@ impl PanelElement for TabMenu {
                         _ => (),
                     }
                     self.active_remote = Some(remote);
-                    self.ui_stack.remove_highest_priority_panel();
+                    self.ui_stack.remove_panel_by_name(REMOTE_EXPLORER_NAME);
 
                     should_refresh_issues = true;
                 }

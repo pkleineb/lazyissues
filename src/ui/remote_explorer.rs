@@ -16,6 +16,8 @@ use crate::{config, create_floating_layout, ui::PanelElement};
 
 use super::tab_menu::RepoData;
 
+pub const REMOTE_EXPLORER_NAME: &str = "remote_explorer";
+
 pub struct RemoteExplorer {
     remote_mask: String,
     items: Vec<String>,

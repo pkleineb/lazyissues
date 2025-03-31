@@ -10,6 +10,8 @@ use crate::graphql_requests::github::issue_query;
 
 use super::PanelElement;
 
+pub const ISSUES_VIEW_NAME: &str = "remote_explorer";
+
 pub struct IssuesView {
     layout_position: usize,
 
