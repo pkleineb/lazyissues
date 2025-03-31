@@ -72,6 +72,10 @@ impl UiStack {
             .map_or(0, |(priority, _)| *priority)
     }
 
+    pub fn get_panel_names(&self) -> Vec<&String> {
+        self.panel_names.keys().collect()
+    }
+
     pub fn iter(&mut self) -> impl Iterator<Item = &mut Box<dyn PanelElement>> {
         self.panels.values_mut()
     }
