@@ -123,10 +123,17 @@ impl TabMenu {
             quit: false,
         };
 
-        tab_menu.ui_stack.add_panel(
-            RemoteExplorer::new(1, tab_menu.data_clone_sender.clone())?,
-            tab_menu.ui_stack.get_highest_priority() + 1,
-        );
+        if tab_menu.active_remote.is_some() {
+            match tab_menu.send_issue_request() {
+                Err(error) => log::error!("{} occured during initial issue fetch request.", error),
+                _ => (),
+            }
+        } else {
+            tab_menu.ui_stack.add_panel(
+                RemoteExplorer::new(1, tab_menu.data_clone_sender.clone())?,
+                tab_menu.ui_stack.get_highest_priority() + 1,
+            );
+        }
 
         Ok(tab_menu)
     }
@@ -266,6 +273,8 @@ impl PanelElement for TabMenu {
             self.data_response_data.push(data);
         }
 
+        let mut should_refresh_issues = false;
+
         for data in self.data_response_data.drain(..) {
             match data {
                 RepoData::IssuesData(data) => {
@@ -296,7 +305,19 @@ impl PanelElement for TabMenu {
                     }
                     self.active_remote = Some(remote);
                     self.ui_stack.remove_highest_priority_panel();
+
+                    should_refresh_issues = true;
                 }
+            }
+        }
+
+        if should_refresh_issues {
+            match self.send_issue_request() {
+                Err(error) => log::error!(
+                    "{} occured on issue fetch request after remote explorer closed.",
+                    error
+                ),
+                _ => (),
             }
         }
     }
