@@ -8,7 +8,7 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::Rect,
     style::{Color, Style},
-    widgets::{Block, Borders, List, ListState},
+    widgets::{Block, Borders, Clear, List, ListState},
     Frame,
 };
 

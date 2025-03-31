@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Flex, Layout, Rect},
     style::{Color, Style},
     text::Span,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph},
 };
 
 use crate::graphql_requests::github::issue_query;
