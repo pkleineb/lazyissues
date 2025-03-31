@@ -191,6 +191,9 @@ impl PanelElement for RemoteExplorer {
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) {
         let directory_items = self.items.clone();
 
+        let floating_area = create_floating_layout(50, 50, layout[self.layout_position]);
+        render_frame.render_widget(Clear, floating_area);
+
         let display_rect = List::new(directory_items)
             .highlight_style(Style::default().bg(Color::DarkGray))
             .block(
@@ -200,11 +203,7 @@ impl PanelElement for RemoteExplorer {
             )
             .style(Style::default().fg(Color::White));
 
-        render_frame.render_stateful_widget(
-            display_rect,
-            create_floating_layout(50, 50, layout[self.layout_position]),
-            &mut self.state,
-        );
+        render_frame.render_stateful_widget(display_rect, floating_area, &mut self.state);
     }
 
     fn tick(&mut self) -> () {
