@@ -163,6 +163,10 @@ impl PanelElement for IssuesView {
         render_frame: &mut ratatui::Frame,
         layout: &std::rc::Rc<[ratatui::prelude::Rect]>,
     ) -> () {
+        let render_area = layout[self.layout_position];
+
+        render_frame.render_widget(Clear, render_area);
+
         if let Some(issue_nodes) = &self.issue_data.issues.nodes {
             let issues: Vec<_> = issue_nodes.iter().filter(|issue| issue.is_some()).collect();
 
@@ -174,7 +178,7 @@ impl PanelElement for IssuesView {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(constraints)
-                .split(layout[self.layout_position]);
+                .split(render_area);
 
             for (i, (issue, chunk)) in issues.iter().zip(chunks.iter()).enumerate() {
                 if issue.is_none() {
