@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::{BTreeMap, HashMap},
     rc::Rc,
 };
@@ -13,6 +14,7 @@ pub trait PanelElement {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool;
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) -> ();
     fn tick(&mut self) -> ();
+    fn update(&mut self, data: Box<dyn Any>) -> bool;
 }
 
 pub struct UiStack {

@@ -195,4 +195,27 @@ impl PanelElement for IssuesView {
             }
         }
     }
+
+    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+        if let Ok(repo_data) = data.downcast::<issue_query::IssueQueryRepository>() {
+            self.issue_data = *repo_data;
+            self.issue_amount = self
+                .issue_data
+                .issues
+                .nodes
+                .as_ref()
+                .unwrap_or(&vec![])
+                .len();
+
+            self.selected_issue = if self.selected_issue < self.issue_amount {
+                self.selected_issue
+            } else {
+                self.issue_amount
+            };
+
+            return true;
+        }
+
+        false
+    }
 }

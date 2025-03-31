@@ -306,8 +306,17 @@ impl PanelElement for TabMenu {
                     match data.repository {
                         Some(repo_data) => {
                             let top_priority = self.ui_stack.get_highest_priority() + 1;
-                            self.ui_stack
-                                .add_panel(IssuesView::new(1, repo_data), top_priority);
+                            if let Some(panel) =
+                                self.ui_stack.get_panel_mut_ref_by_name(ISSUES_VIEW_NAME)
+                            {
+                                panel.update(Box::new(repo_data));
+                            } else {
+                                self.ui_stack.add_panel(
+                                    IssuesView::new(1, repo_data),
+                                    top_priority,
+                                    ISSUES_VIEW_NAME,
+                                );
+                            }
                         }
                         None => {
                             log::debug!("Couldn't display issues since there was no repository in response data")
@@ -341,5 +350,9 @@ impl PanelElement for TabMenu {
                 _ => (),
             }
         }
+    }
+
+    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+        false
     }
 }

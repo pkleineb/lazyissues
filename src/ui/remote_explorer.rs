@@ -211,4 +211,8 @@ impl PanelElement for RemoteExplorer {
     fn tick(&mut self) -> () {
         ()
     }
+
+    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+        false
+    }
 }
