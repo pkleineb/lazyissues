@@ -129,10 +129,7 @@ impl TabMenu {
                 _ => (),
             }
         } else {
-            tab_menu.ui_stack.add_panel(
-                RemoteExplorer::new(1, tab_menu.data_clone_sender.clone())?,
-                tab_menu.ui_stack.get_highest_priority() + 1,
-            );
+            tab_menu.open_remote_explorer()?;
         }
 
         Ok(tab_menu)
@@ -140,6 +137,15 @@ impl TabMenu {
 
     pub fn wants_to_quit(&self) -> bool {
         self.quit
+    }
+
+    fn open_remote_explorer(&mut self) -> Result<(), git2::Error> {
+        self.ui_stack.add_panel(
+            RemoteExplorer::new(1, self.data_clone_sender.clone())?,
+            self.ui_stack.get_highest_priority() + 1,
+        );
+
+        Ok(())
     }
 
     fn send_issue_request(&self) -> Result<(), Box<dyn Error>> {
@@ -221,6 +227,16 @@ impl PanelElement for TabMenu {
                 KeyCode::Char('P') => self.active_menu_item = MenuItem::PullRequests,
                 KeyCode::Char('A') => self.active_menu_item = MenuItem::Actions,
                 KeyCode::Char('R') => self.active_menu_item = MenuItem::Projects,
+                _ => (),
+            },
+            KeyEvent {
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => match key_event.code {
+                KeyCode::Char('n') => match self.open_remote_explorer() {
+                    Err(error) => log::error!("{} occured while opening remote explorer!", error),
+                    _ => (),
+                },
                 _ => (),
             },
             _ => (),
