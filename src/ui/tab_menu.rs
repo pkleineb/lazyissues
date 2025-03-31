@@ -289,7 +289,7 @@ impl PanelElement for TabMenu {
                                 .add_panel(IssuesView::new(1, repo_data), top_priority);
                         }
                         None => {
-                            log::debug!("Couldn't display issues since there was no repository")
+                            log::debug!("Couldn't display issues since there was no repository in response data")
                         }
                     }
                 }
