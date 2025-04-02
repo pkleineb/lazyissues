@@ -102,4 +102,10 @@ impl UiStack {
     pub fn iter_rev(&mut self) -> impl Iterator<Item = &mut Box<dyn PanelElement>> {
         self.panels.values_mut().rev()
     }
+
+    pub fn iter_with_priority(
+        &mut self,
+    ) -> impl Iterator<Item = (&u8, &mut Box<dyn PanelElement>)> {
+        self.panels.iter_mut()
+    }
 }

@@ -142,12 +142,15 @@ impl RemoteExplorer {
         }
     }
 
-    fn select_remote(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn select_remote(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         match self.state.selected() {
             Some(index) => match self.items.get(index) {
-                Some(selected_remote) => Ok(self
-                    .remote_sender
-                    .send(RepoData::ActiveRemoteData(selected_remote.clone()))?),
+                Some(selected_remote) => {
+                    self.quit = true;
+                    Ok(self
+                        .remote_sender
+                        .send(RepoData::ActiveRemoteData(selected_remote.clone()))?)
+                }
                 None => Err("Selected index of remote is out of bounds.".into()),
             },
             None => Err("Tried to select remote while there was no selection.".into()),
@@ -175,6 +178,7 @@ impl PanelElement for RemoteExplorer {
                     Err(error) => log::error!("{} occured on removing from mask!", error),
                     _ => (),
                 },
+                KeyCode::Esc => self.quit = true,
                 _ => (),
             },
             KeyEvent {

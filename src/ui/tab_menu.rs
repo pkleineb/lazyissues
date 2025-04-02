@@ -330,7 +330,6 @@ impl PanelElement for TabMenu {
                         _ => (),
                     }
                     self.active_remote = Some(remote);
-                    self.ui_stack.remove_panel_by_name(REMOTE_EXPLORER_NAME);
 
                     should_refresh_issues = true;
                 }
@@ -345,6 +344,18 @@ impl PanelElement for TabMenu {
                 ),
                 _ => (),
             }
+        }
+
+        let mut priorities_to_quit: Vec<u8> = vec![];
+
+        for (priority, panel) in self.ui_stack.iter_with_priority() {
+            if panel.wants_to_quit() {
+                priorities_to_quit.push(*priority);
+            }
+        }
+
+        for priority in priorities_to_quit.iter() {
+            self.ui_stack.remove_panel(*priority);
         }
     }
 
