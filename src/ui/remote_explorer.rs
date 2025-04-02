@@ -12,7 +12,11 @@ use ratatui::{
     Frame,
 };
 
-use crate::{config, create_floating_layout, ui::PanelElement};
+use crate::{
+    config::{self, git::get_git_remote_url_for_name},
+    create_floating_layout,
+    ui::PanelElement,
+};
 
 use super::tab_menu::RepoData;
 
@@ -59,9 +63,9 @@ impl RemoteExplorer {
     }
 
     fn update_items(&mut self) -> Result<(), git2::Error> {
-        self.items = config::git::get_remote_urls()?
+        self.items = config::git::get_remote_names()?
             .into_iter()
-            .filter(|entry| self.compare_entry_to_mask(entry))
+            .filter(|remote_name| self.compare_entry_to_mask(remote_name))
             .collect();
 
         self.items.sort();
@@ -146,10 +150,14 @@ impl RemoteExplorer {
         match self.state.selected() {
             Some(index) => match self.items.get(index) {
                 Some(selected_remote) => {
+                    let remote_url = get_git_remote_url_for_name(&selected_remote)?;
+
+                    self.remote_sender
+                        .send(RepoData::ActiveRemoteData(remote_url))?;
+
                     self.quit = true;
-                    Ok(self
-                        .remote_sender
-                        .send(RepoData::ActiveRemoteData(selected_remote.clone()))?)
+
+                    Ok(())
                 }
                 None => Err("Selected index of remote is out of bounds.".into()),
             },
@@ -199,12 +207,12 @@ impl PanelElement for RemoteExplorer {
     }
 
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) {
-        let directory_items = self.items.clone();
+        let remotes = self.items.clone();
 
-        let floating_area = create_floating_layout(50, 50, layout[self.layout_position]);
+        let floating_area = create_floating_layout(20, 20, layout[self.layout_position]);
         render_frame.render_widget(Clear, floating_area);
 
-        let display_rect = List::new(directory_items)
+        let display_rect = List::new(remotes)
             .highlight_style(Style::default().bg(Color::DarkGray))
             .block(
                 Block::default()

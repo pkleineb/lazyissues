@@ -2,6 +2,36 @@ use std::path::PathBuf;
 
 use git2::Repository;
 
+pub fn get_remote_names() -> Result<Vec<String>, git2::Error> {
+    let repo = Repository::open(".")?;
+    let remotes = repo.remotes()?;
+
+    let remote_names: Vec<String> = remotes
+        .iter()
+        .filter_map(|remote_name| remote_name.and_then(|name| Some(name.to_string())))
+        .collect();
+
+    Ok(remote_names)
+}
+
+pub fn get_remote_names_and_urls() -> Result<Vec<(String, String)>, git2::Error> {
+    let repo = Repository::open(".")?;
+    let remotes = repo.remotes()?;
+
+    let remote_names_urls: Vec<(String, String)> = remotes
+        .iter()
+        .filter_map(|remote_name| {
+            remote_name.and_then(|name| {
+                repo.find_remote(name)
+                    .ok()
+                    .and_then(|remote| remote.url().map(|url| (name.to_string(), url.to_string())))
+            })
+        })
+        .collect();
+
+    Ok(remote_names_urls)
+}
+
 pub fn get_remote_urls() -> Result<Vec<String>, git2::Error> {
     let repo = Repository::open(".")?;
     let remotes = repo.remotes()?;
@@ -65,4 +95,18 @@ pub fn get_git_repo_root() -> Result<PathBuf, git2::Error> {
     repo.workdir()
         .map(|path| path.to_path_buf())
         .ok_or_else(|| git2::Error::from_str("Could not find repository root"))
+}
+
+pub fn get_git_remote_url_for_name(name: &str) -> Result<String, git2::Error> {
+    let repo = Repository::open(".")?;
+
+    let remote = repo.find_remote(name)?;
+    let url = remote.url().ok_or_else(|| {
+        git2::Error::from_str(&format!(
+            "Remote url not set for remote: {}",
+            remote.name().unwrap_or("no remote name set")
+        ))
+    })?;
+
+    Ok(url.to_string())
 }
