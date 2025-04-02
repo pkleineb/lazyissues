@@ -200,7 +200,11 @@ impl PanelElement for RemoteExplorer {
             .highlight_style(Style::default().bg(Color::DarkGray))
             .block(
                 Block::default()
-                    .title(self.remote_mask.to_owned() + self.render_cursor())
+                    .title(format!(
+                        " Remotes: {}{} ",
+                        self.remote_mask.to_owned(),
+                        self.render_cursor()
+                    ))
                     .borders(Borders::ALL),
             )
             .style(Style::default().fg(Color::White));
