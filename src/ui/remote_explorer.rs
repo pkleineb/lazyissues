@@ -224,7 +224,7 @@ impl PanelElement for RemoteExplorer {
         ()
     }
 
-    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+    fn update(&mut self, _data: Box<dyn std::any::Any>) -> bool {
         false
     }
 

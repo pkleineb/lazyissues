@@ -12,7 +12,7 @@ use regex::Regex;
 use tokio::runtime::Runtime;
 
 use crate::{
-    config::{self, git::get_git_repo_root, Config, State},
+    config::{git::get_git_repo_root, Config, State},
     graphql_requests::github::{issue_query, perform_issue_query},
     ui::PanelElement,
 };
@@ -359,7 +359,7 @@ impl PanelElement for TabMenu {
         }
     }
 
-    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+    fn update(&mut self, _data: Box<dyn std::any::Any>) -> bool {
         false
     }
 
