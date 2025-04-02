@@ -30,6 +30,8 @@ pub struct RemoteExplorer {
     cursor_rendered_last_flicker: bool,
 
     remote_sender: mpsc::Sender<RepoData>,
+
+    quit: bool,
 }
 
 impl RemoteExplorer {
@@ -49,6 +51,8 @@ impl RemoteExplorer {
             cursor_rendered_last_flicker: false,
 
             remote_sender,
+
+            quit: false,
         };
         explorer.update_items()?;
         Ok(explorer)
@@ -218,5 +222,9 @@ impl PanelElement for RemoteExplorer {
 
     fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
         false
+    }
+
+    fn wants_to_quit(&self) -> bool {
+        self.quit
     }
 }

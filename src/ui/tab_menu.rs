@@ -139,10 +139,6 @@ impl TabMenu {
         Ok(tab_menu)
     }
 
-    pub fn wants_to_quit(&self) -> bool {
-        self.quit
-    }
-
     fn open_remote_explorer(&mut self) -> Result<(), git2::Error> {
         self.ui_stack.add_panel(
             RemoteExplorer::new(1, self.data_clone_sender.clone())?,
@@ -354,5 +350,9 @@ impl PanelElement for TabMenu {
 
     fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
         false
+    }
+
+    fn wants_to_quit(&self) -> bool {
+        self.quit
     }
 }

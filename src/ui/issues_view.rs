@@ -218,4 +218,8 @@ impl PanelElement for IssuesView {
 
         false
     }
+
+    fn wants_to_quit(&self) -> bool {
+        false
+    }
 }

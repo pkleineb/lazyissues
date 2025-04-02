@@ -15,6 +15,7 @@ pub trait PanelElement {
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) -> ();
     fn tick(&mut self) -> ();
     fn update(&mut self, data: Box<dyn Any>) -> bool;
+    fn wants_to_quit(&self) -> bool;
 }
 
 pub struct UiStack {
