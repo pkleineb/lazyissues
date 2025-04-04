@@ -13,7 +13,10 @@ use tokio::runtime::Runtime;
 
 use crate::{
     config::{git::get_git_repo_root, Config, State},
-    graphql_requests::github::{issues_query, perform_issues_query},
+    graphql_requests::github::{
+        issues_query, perform_issues_query, perform_pull_requests_query, pull_requests_query,
+        VariableStore,
+    },
     ui::PanelElement,
 };
 
@@ -67,10 +70,16 @@ impl MenuItem {
     }
 }
 
+pub enum RequestType {
+    IssuesRequest,
+    PullRequestsRequest,
+}
+
 pub enum RepoData {
     ActiveRemoteData(String),
 
     IssuesData(issues_query::ResponseData),
+    PullRequestsData(pull_requests_query::ResponseData),
 }
 
 pub struct TabMenu {
@@ -128,7 +137,7 @@ impl TabMenu {
         };
 
         if tab_menu.active_remote.is_some() {
-            match tab_menu.send_issues_request() {
+            match tab_menu.send_request(RequestType::IssuesRequest) {
                 Err(error) => log::error!("{} occured during initial issue fetch request.", error),
                 _ => (),
             }
@@ -149,7 +158,7 @@ impl TabMenu {
         Ok(())
     }
 
-    fn send_issues_request(&self) -> Result<(), Box<dyn Error>> {
+    fn send_request(&self, request_type: RequestType) -> Result<(), Box<dyn Error>> {
         if self.config.github_token.is_none() {
             log::info!("Github token not set.");
             return Ok(());
@@ -166,13 +175,13 @@ impl TabMenu {
             .as_ref()
             .expect("active_remote already checked");
         let Some(repo_captures) = repo_regex.captures(active_remote) else {
-            return Err("Couldn't capture owner or name for issues_query".into());
+            return Err("Couldn't capture owner or name for request".into());
         };
 
-        let variables = issues_query::Variables {
-            repo_name: repo_captures["name"].to_string(),
-            repo_owner: repo_captures["owner"].to_string(),
-        };
+        let variables = VariableStore::new(
+            repo_captures["name"].to_string(),
+            repo_captures["owner"].to_string(),
+        );
 
         let cloned_sender = self.data_clone_sender.clone();
         let cloned_access_token = self
@@ -184,10 +193,32 @@ impl TabMenu {
         thread::spawn(move || match Runtime::new() {
             Ok(runtime) => {
                 runtime.block_on(async {
-                    match perform_issues_query(cloned_sender, variables, cloned_access_token).await
-                    {
-                        Err(error) => log::error!("issues_query returned an error. {}", error),
-                        _ => (),
+                    match request_type {
+                        RequestType::IssuesRequest => match perform_issues_query(
+                            cloned_sender,
+                            variables.into(),
+                            cloned_access_token,
+                        )
+                        .await
+                        {
+                            Err(error) => {
+                                log::error!("issues_query returned an error. {}", error)
+                            }
+                            _ => (),
+                        },
+
+                        RequestType::PullRequestsRequest => match perform_pull_requests_query(
+                            cloned_sender,
+                            variables.into(),
+                            cloned_access_token,
+                        )
+                        .await
+                        {
+                            Err(error) => {
+                                log::error!("pull_requests_query returned an error. {}", error)
+                            }
+                            _ => (),
+                        },
                     }
                 });
             }
@@ -219,7 +250,7 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
-                    match self.send_issues_request() {
+                    match self.send_request(RequestType::IssuesRequest) {
                         Err(error) => {
                             log::error!("{} occured during sending of issue request", error);
                         }
@@ -320,6 +351,7 @@ impl PanelElement for TabMenu {
                         }
                     }
                 }
+                RepoData::PullRequestsData(data) => (),
                 RepoData::ActiveRemoteData(remote) => {
                     match self
                         .state
@@ -338,7 +370,7 @@ impl PanelElement for TabMenu {
         }
 
         if should_refresh_issues {
-            match self.send_issues_request() {
+            match self.send_request(RequestType::IssuesRequest) {
                 Err(error) => log::error!(
                     "{} occured on issue fetch request after remote explorer closed.",
                     error

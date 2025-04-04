@@ -8,6 +8,38 @@ pub mod github {
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
 
+    pub struct VariableStore {
+        repo_name: String,
+        repo_owner: String,
+    }
+
+    impl VariableStore {
+        pub fn new(repo_name: String, repo_owner: String) -> Self {
+            Self {
+                repo_name,
+                repo_owner,
+            }
+        }
+    }
+
+    impl Into<issues_query::Variables> for VariableStore {
+        fn into(self) -> issues_query::Variables {
+            issues_query::Variables {
+                repo_name: self.repo_name,
+                repo_owner: self.repo_owner,
+            }
+        }
+    }
+
+    impl Into<pull_requests_query::Variables> for VariableStore {
+        fn into(self) -> pull_requests_query::Variables {
+            pull_requests_query::Variables {
+                repo_name: self.repo_name,
+                repo_owner: self.repo_owner,
+            }
+        }
+    }
+
     pub mod types {
         use serde::{Deserialize, Serialize};
 
