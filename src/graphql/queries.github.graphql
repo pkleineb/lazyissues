@@ -1,4 +1,4 @@
-query IssueQuery($repo_name: String!, $repo_owner: String!) {
+query IssuesQuery($repo_name: String!, $repo_owner: String!) {
   repository(name: $repo_name, owner: $repo_owner) {
     issues (first: 10) {
       nodes {

@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 
 use crate::{
     config::{git::get_git_repo_root, Config, State},
-    graphql_requests::github::{issue_query, perform_issue_query},
+    graphql_requests::github::{issues_query, perform_issues_query},
     ui::PanelElement,
 };
 
@@ -70,7 +70,7 @@ impl MenuItem {
 pub enum RepoData {
     ActiveRemoteData(String),
 
-    IssuesData(issue_query::ResponseData),
+    IssuesData(issues_query::ResponseData),
 }
 
 pub struct TabMenu {
@@ -166,10 +166,10 @@ impl TabMenu {
             .as_ref()
             .expect("active_remote already checked");
         let Some(repo_captures) = repo_regex.captures(active_remote) else {
-            return Err("Couldn't capture owner or name for issue_query".into());
+            return Err("Couldn't capture owner or name for issues_query".into());
         };
 
-        let variables = issue_query::Variables {
+        let variables = issues_query::Variables {
             repo_name: repo_captures["name"].to_string(),
             repo_owner: repo_captures["owner"].to_string(),
         };
@@ -184,13 +184,14 @@ impl TabMenu {
         thread::spawn(move || match Runtime::new() {
             Ok(runtime) => {
                 runtime.block_on(async {
-                    match perform_issue_query(cloned_sender, variables, cloned_access_token).await {
-                        Err(error) => log::error!("issue_query returned an error. {}", error),
+                    match perform_issues_query(cloned_sender, variables, cloned_access_token).await
+                    {
+                        Err(error) => log::error!("issues_query returned an error. {}", error),
                         _ => (),
                     }
                 });
             }
-            Err(error) => log::error!("Couldn't spawn runtime for issue_query. {}", error),
+            Err(error) => log::error!("Couldn't spawn runtime for issues_query. {}", error),
         });
         Ok(())
     }

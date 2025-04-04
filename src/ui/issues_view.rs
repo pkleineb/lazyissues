@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 
-use crate::graphql_requests::github::issue_query;
+use crate::graphql_requests::github::issues_query;
 
 use super::PanelElement;
 
@@ -15,13 +15,13 @@ pub const ISSUES_VIEW_NAME: &str = "remote_explorer";
 pub struct IssuesView {
     layout_position: usize,
 
-    issue_data: issue_query::IssueQueryRepository,
+    issue_data: issues_query::IssuesQueryRepository,
     issue_amount: usize,
     selected_issue: usize,
 }
 
 impl IssuesView {
-    pub fn new(layout_position: usize, data: issue_query::IssueQueryRepository) -> Self {
+    pub fn new(layout_position: usize, data: issues_query::IssuesQueryRepository) -> Self {
         Self {
             layout_position,
             issue_amount: data.issues.nodes.as_ref().unwrap_or(&vec![]).len(),
@@ -46,7 +46,7 @@ impl IssuesView {
     }
 
     fn display_issue(
-        issue_data: &issue_query::IssueQueryRepositoryIssuesNodes,
+        issue_data: &issues_query::IssuesQueryRepositoryIssuesNodes,
         render_frame: &mut ratatui::Frame,
         area: Rect,
         is_highlighted: bool,
@@ -197,7 +197,7 @@ impl PanelElement for IssuesView {
     }
 
     fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
-        if let Ok(repo_data) = data.downcast::<issue_query::IssueQueryRepository>() {
+        if let Ok(repo_data) = data.downcast::<issues_query::IssuesQueryRepository>() {
             self.issue_data = *repo_data;
             self.issue_amount = self
                 .issue_data
