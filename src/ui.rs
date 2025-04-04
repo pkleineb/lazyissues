@@ -42,6 +42,11 @@ impl UiStack {
         self.panels.insert(priority, Box::new(panel));
     }
 
+    pub fn clear(&mut self) {
+        self.panels.clear();
+        self.panel_names.clear();
+    }
+
     pub fn remove_panel(&mut self, priority: u8) -> Option<Box<dyn PanelElement>> {
         self.panel_names.retain(|_, &mut p| p != priority);
         self.panels.remove(&priority)

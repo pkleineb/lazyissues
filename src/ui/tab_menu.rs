@@ -21,8 +21,9 @@ use crate::{
 };
 
 use super::{
-    issues_view::{IssuesView, ISSUES_VIEW_NAME},
-    list_view::{create_issues_view, create_pull_requests_view, PULL_REQUESTS_VIEW_NAME},
+    list_view::{
+        create_issues_view, create_pull_requests_view, ISSUES_VIEW_NAME, PULL_REQUESTS_VIEW_NAME,
+    },
     remote_explorer::{RemoteExplorer, REMOTE_EXPLORER_NAME},
     UiStack,
 };
@@ -251,6 +252,7 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
+                    self.ui_stack.clear();
                     match self.send_request(RequestType::IssuesRequest) {
                         Err(error) => {
                             log::error!("{} occured during sending of issue request", error);
@@ -260,6 +262,7 @@ impl PanelElement for TabMenu {
                 }
                 KeyCode::Char('P') => {
                     self.active_menu_item = MenuItem::PullRequests;
+                    self.ui_stack.clear();
                     match self.send_request(RequestType::PullRequestsRequest) {
                         Err(error) => {
                             log::error!(
@@ -270,8 +273,14 @@ impl PanelElement for TabMenu {
                         _ => (),
                     }
                 }
-                KeyCode::Char('A') => self.active_menu_item = MenuItem::Actions,
-                KeyCode::Char('R') => self.active_menu_item = MenuItem::Projects,
+                KeyCode::Char('A') => {
+                    self.active_menu_item = MenuItem::Actions;
+                    self.ui_stack.clear();
+                }
+                KeyCode::Char('R') => {
+                    self.active_menu_item = MenuItem::Projects;
+                    self.ui_stack.clear();
+                }
                 _ => (),
             },
             KeyEvent {
