@@ -128,7 +128,7 @@ impl TabMenu {
         };
 
         if tab_menu.active_remote.is_some() {
-            match tab_menu.send_issue_request() {
+            match tab_menu.send_issues_request() {
                 Err(error) => log::error!("{} occured during initial issue fetch request.", error),
                 _ => (),
             }
@@ -149,7 +149,7 @@ impl TabMenu {
         Ok(())
     }
 
-    fn send_issue_request(&self) -> Result<(), Box<dyn Error>> {
+    fn send_issues_request(&self) -> Result<(), Box<dyn Error>> {
         if self.config.github_token.is_none() {
             log::info!("Github token not set.");
             return Ok(());
@@ -219,7 +219,7 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
-                    match self.send_issue_request() {
+                    match self.send_issues_request() {
                         Err(error) => {
                             log::error!("{} occured during sending of issue request", error);
                         }
@@ -338,7 +338,7 @@ impl PanelElement for TabMenu {
         }
 
         if should_refresh_issues {
-            match self.send_issue_request() {
+            match self.send_issues_request() {
                 Err(error) => log::error!(
                     "{} occured on issue fetch request after remote explorer closed.",
                     error
