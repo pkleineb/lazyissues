@@ -4,7 +4,10 @@ pub mod github {
     use graphql_client::{GraphQLQuery, Response};
     use reqwest::header;
 
-    use crate::ui::tab_menu::RepoData;
+    use crate::ui::{
+        list_view::{ListCollection, ListItem},
+        tab_menu::RepoData,
+    };
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
 
@@ -142,6 +145,128 @@ pub mod github {
                 Ok(response_sender.send(RepoData::PullRequestsData(data))?)
             }
             None => Err("No response data returned.".into()),
+        }
+    }
+
+    impl ListItem for issues_query::IssuesQueryRepositoryIssuesNodes {
+        fn get_title(&self) -> &str {
+            &self.title
+        }
+
+        fn get_number(&self) -> i64 {
+            self.number
+        }
+
+        fn is_closed(&self) -> bool {
+            self.closed
+        }
+
+        fn get_author_login(&self) -> Option<&str> {
+            self.author.as_ref().map(|author| &author.login[..])
+        }
+
+        fn get_created_at(&self) -> &str {
+            &self.created_at.0
+        }
+
+        fn get_labels(&self) -> Vec<String> {
+            let mut result = Vec::new();
+            if let Some(labels) = &self.labels {
+                if let Some(nodes) = &labels.nodes {
+                    for node in nodes {
+                        if let Some(label) = node {
+                            result.push(label.name.clone());
+                        }
+                    }
+                }
+            }
+            result
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct IssuesCollection {
+        repository: issues_query::IssuesQueryRepository,
+    }
+
+    impl IssuesCollection {
+        pub fn new(repository: issues_query::IssuesQueryRepository) -> Self {
+            Self { repository }
+        }
+    }
+
+    impl ListCollection for IssuesCollection {
+        fn get_items(&self) -> Vec<Box<dyn ListItem>> {
+            let mut items: Vec<Box<dyn ListItem>> = Vec::new();
+            if let Some(nodes) = &self.repository.issues.nodes {
+                for node in nodes {
+                    if let Some(issue) = node {
+                        items.push(Box::new(issue.clone()));
+                    }
+                }
+            }
+            items
+        }
+    }
+
+    impl ListItem for pull_requests_query::PullRequestsQueryRepositoryPullRequestsNodes {
+        fn get_title(&self) -> &str {
+            &self.title
+        }
+
+        fn get_number(&self) -> i64 {
+            self.number
+        }
+
+        fn is_closed(&self) -> bool {
+            self.closed
+        }
+
+        fn get_author_login(&self) -> Option<&str> {
+            self.author.as_ref().map(|author| &author.login[..])
+        }
+
+        fn get_created_at(&self) -> &str {
+            &self.created_at.0
+        }
+
+        fn get_labels(&self) -> Vec<String> {
+            let mut result = Vec::new();
+            if let Some(labels) = &self.labels {
+                if let Some(nodes) = &labels.nodes {
+                    for node in nodes {
+                        if let Some(label) = node {
+                            result.push(label.name.clone());
+                        }
+                    }
+                }
+            }
+            result
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct PullRequestsCollection {
+        repository: pull_requests_query::PullRequestsQueryRepository,
+    }
+
+    impl PullRequestsCollection {
+        pub fn new(repository: pull_requests_query::PullRequestsQueryRepository) -> Self {
+            Self { repository }
+        }
+    }
+
+    impl ListCollection for PullRequestsCollection {
+        fn get_items(&self) -> Vec<Box<dyn ListItem>> {
+            let mut items: Vec<Box<dyn ListItem>> = Vec::new();
+            if let Some(nodes) = &self.repository.pull_requests.nodes {
+                for node in nodes {
+                    if let Some(pr) = node {
+                        items.push(Box::new(pr.clone()));
+                    }
+                }
+            }
+            items
         }
     }
 }
