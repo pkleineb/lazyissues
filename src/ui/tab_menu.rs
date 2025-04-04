@@ -22,6 +22,7 @@ use crate::{
 
 use super::{
     issues_view::{IssuesView, ISSUES_VIEW_NAME},
+    list_view::{create_issues_view, create_pull_requests_view, PULL_REQUESTS_VIEW_NAME},
     remote_explorer::{RemoteExplorer, REMOTE_EXPLORER_NAME},
     UiStack,
 };
@@ -257,7 +258,18 @@ impl PanelElement for TabMenu {
                         _ => (),
                     }
                 }
-                KeyCode::Char('P') => self.active_menu_item = MenuItem::PullRequests,
+                KeyCode::Char('P') => {
+                    self.active_menu_item = MenuItem::PullRequests;
+                    match self.send_request(RequestType::PullRequestsRequest) {
+                        Err(error) => {
+                            log::error!(
+                                "{} occured during sending of pull requests request",
+                                error
+                            );
+                        }
+                        _ => (),
+                    }
+                }
                 KeyCode::Char('A') => self.active_menu_item = MenuItem::Actions,
                 KeyCode::Char('R') => self.active_menu_item = MenuItem::Projects,
                 _ => (),
@@ -340,7 +352,7 @@ impl PanelElement for TabMenu {
                                 panel.update(Box::new(repo_data));
                             } else {
                                 self.ui_stack.add_panel(
-                                    IssuesView::new(1, repo_data),
+                                    create_issues_view(1, repo_data),
                                     top_priority,
                                     ISSUES_VIEW_NAME,
                                 );
@@ -351,7 +363,32 @@ impl PanelElement for TabMenu {
                         }
                     }
                 }
-                RepoData::PullRequestsData(data) => (),
+                RepoData::PullRequestsData(data) => {
+                    if self.active_menu_item != MenuItem::PullRequests {
+                        continue;
+                    };
+
+                    match data.repository {
+                        Some(repo_data) => {
+                            let top_priority = self.ui_stack.get_highest_priority() + 1;
+                            if let Some(panel) = self
+                                .ui_stack
+                                .get_panel_mut_ref_by_name(PULL_REQUESTS_VIEW_NAME)
+                            {
+                                panel.update(Box::new(repo_data));
+                            } else {
+                                self.ui_stack.add_panel(
+                                    create_pull_requests_view(1, repo_data),
+                                    top_priority,
+                                    PULL_REQUESTS_VIEW_NAME,
+                                );
+                            }
+                        }
+                        None => {
+                            log::debug!("Couldn't display issues since there was no repository in response data")
+                        }
+                    }
+                }
                 RepoData::ActiveRemoteData(remote) => {
                     match self
                         .state
