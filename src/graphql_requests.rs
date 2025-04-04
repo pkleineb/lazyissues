@@ -64,4 +64,52 @@ pub mod github {
             None => Err("No response data returned.".into()),
         }
     }
+
+    #[derive(GraphQLQuery)]
+    #[graphql(
+        schema_path = "src/graphql/schema.github.graphql",
+        query_path = "src/graphql/queries.github.graphql",
+        response_derives = "Debug, Clone, PartialEq",
+        custom_scalars_module = "types"
+    )]
+    pub struct PullRequestsQuery;
+
+    pub async fn perform_pull_requests_query(
+        response_sender: mpsc::Sender<RepoData>,
+        variables: pull_requests_query::Variables,
+        access_token: String,
+    ) -> Result<(), Box<dyn Error>> {
+        let request_body = PullRequestsQuery::build_query(variables);
+
+        let client = reqwest::Client::builder()
+            .user_agent("LazyIssues/0.1.0")
+            .default_headers({
+                let mut headers = header::HeaderMap::new();
+                headers.insert(
+                    header::AUTHORIZATION,
+                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                );
+                headers
+            })
+            .build()?;
+
+        let response = client
+            .post(GITHUB_GRAPHQL_ENDPOINT)
+            .json(&request_body)
+            .send()
+            .await?;
+
+        let text = response.text().await?;
+        let response_body: Response<pull_requests_query::ResponseData> =
+            serde_json::from_str(&text)?; //response.json().await?;
+
+        match response_body.data {
+            Some(data) => {
+                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
+                // it doesn't seem so
+                Ok(response_sender.send(RepoData::PullRequestsData(data))?)
+            }
+            None => Err("No response data returned.".into()),
+        }
+    }
 }
