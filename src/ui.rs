@@ -6,7 +6,7 @@ use std::{
 
 use ratatui::{crossterm::event::KeyEvent, layout::Rect, Frame};
 
-pub mod issues_view;
+pub mod list_view;
 pub mod remote_explorer;
 pub mod tab_menu;
 
