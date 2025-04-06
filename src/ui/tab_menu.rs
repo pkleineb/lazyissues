@@ -379,57 +379,45 @@ impl PanelElement for TabMenu {
 
         for data in self.data_response_data.drain(..) {
             match data {
-                RepoData::IssuesData(data) => {
-                    if self.active_menu_item != MenuItem::Issues {
-                        continue;
-                    };
-
-                    match data.repository {
-                        Some(repo_data) => {
-                            let top_priority = self.ui_stack.get_highest_priority() + 1;
-                            if let Some(panel) =
-                                self.ui_stack.get_panel_mut_ref_by_name(ISSUES_VIEW_NAME)
-                            {
-                                panel.update(Box::new(repo_data));
-                            } else {
-                                self.ui_stack.add_panel(
-                                    create_issues_view(1, repo_data),
-                                    top_priority,
-                                    ISSUES_VIEW_NAME,
-                                );
-                            }
-                        }
-                        None => {
-                            log::debug!("Couldn't display issues since there was no repository in response data")
+                RepoData::IssuesData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        if let Some(panel) =
+                            self.ui_stack.get_panel_mut_ref_by_name(ISSUES_VIEW_NAME)
+                        {
+                            panel.update(Box::new(repo_data));
+                        } else {
+                            self.ui_stack.add_panel(
+                                create_issues_view(ISSUES_LAYOUT_POSITION, repo_data),
+                                top_priority,
+                                ISSUES_VIEW_NAME,
+                            );
                         }
                     }
-                }
-                RepoData::PullRequestsData(data) => {
-                    if self.active_menu_item != MenuItem::PullRequests {
-                        continue;
-                    };
-
-                    match data.repository {
-                        Some(repo_data) => {
-                            let top_priority = self.ui_stack.get_highest_priority() + 1;
-                            if let Some(panel) = self
-                                .ui_stack
-                                .get_panel_mut_ref_by_name(PULL_REQUESTS_VIEW_NAME)
-                            {
-                                panel.update(Box::new(repo_data));
-                            } else {
-                                self.ui_stack.add_panel(
-                                    create_pull_requests_view(1, repo_data),
-                                    top_priority,
-                                    PULL_REQUESTS_VIEW_NAME,
-                                );
-                            }
-                        }
-                        None => {
-                            log::debug!("Couldn't display issues since there was no repository in response data")
+                    None => {
+                        log::debug!("Couldn't display issues since there was no repository in response data")
+                    }
+                },
+                RepoData::PullRequestsData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        if let Some(panel) = self
+                            .ui_stack
+                            .get_panel_mut_ref_by_name(PULL_REQUESTS_VIEW_NAME)
+                        {
+                            panel.update(Box::new(repo_data));
+                        } else {
+                            self.ui_stack.add_panel(
+                                create_pull_requests_view(PULL_REQUESTS_LAYOUT_POSITION, repo_data),
+                                top_priority,
+                                PULL_REQUESTS_VIEW_NAME,
+                            );
                         }
                     }
-                }
+                    None => {
+                        log::debug!("Couldn't display issues since there was no repository in response data")
+                    }
+                },
                 RepoData::ActiveRemoteData(remote) => {
                     match self
                         .state
