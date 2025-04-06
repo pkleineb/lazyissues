@@ -2,7 +2,7 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Flex, Layout, Rect},
     style::{Color, Style},
-    text::Span,
+    text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
@@ -31,6 +31,7 @@ pub trait ListCollection {
 
 pub struct ListView<T: ListCollection + 'static> {
     layout_position: usize,
+
     collection: T,
     item_amount: usize,
     selected_item: usize,
@@ -76,21 +77,13 @@ impl<T: ListCollection + 'static> ListView<T> {
         let status = if item.is_closed() { "✓" } else { "○" };
 
         let item_style = if is_highlighted {
-            Style::default().fg(Color::LightGreen)
+            Style::default().bg(Color::Rgb(120, 120, 120))
         } else {
             Style::default()
         };
 
-        let outer_block = Block::default()
-            .borders(Borders::ALL)
-            .style(item_style)
-            .title(format!(
-                "[{} #{} {}]",
-                status,
-                item.get_number(),
-                item.get_title()
-            ))
-            .title_style(status_style);
+        let outer_block = Block::default().borders(Borders::NONE).style(item_style);
+
         let inner_area = outer_block.inner(area);
         render_frame.render_widget(outer_block, area);
 
@@ -99,14 +92,21 @@ impl<T: ListCollection + 'static> ListView<T> {
             .constraints([
                 Constraint::Length(1),
                 Constraint::Length(1),
-                Constraint::Length(5),
+                //Constraint::Length(1),
             ])
             .split(inner_area);
 
+        let title_paragraph = Paragraph::new(Span::styled(
+            format!("[{}] #{} - {}", status, item.get_number(), item.get_title()),
+            status_style,
+        ));
+        render_frame.render_widget(title_paragraph, info_chunks[0]);
+
+        /*
         if let Some(author) = item.get_author_login() {
             let author_paragraph = Paragraph::new(Span::styled(author, Style::default()));
-            render_frame.render_widget(author_paragraph, info_chunks[0]);
-        }
+            render_frame.render_widget(author_paragraph, info_chunks[1]);
+        }*/
 
         let time_paragraph = Paragraph::new(Span::styled(
             item.get_created_at(),
@@ -114,29 +114,31 @@ impl<T: ListCollection + 'static> ListView<T> {
         ));
         render_frame.render_widget(time_paragraph, info_chunks[1]);
 
-        let labels = item.get_labels();
-        if !labels.is_empty() {
-            let mut tags: Vec<Paragraph> = vec![];
-            let mut constraints: Vec<Constraint> = vec![];
+        /*
+            let labels = item.get_labels();
+            if !labels.is_empty() {
+                let mut tags: Vec<Paragraph> = vec![];
+                let mut constraints: Vec<Constraint> = vec![];
 
-            for label in labels {
-                constraints.push(Constraint::Length(label.len() as u16 + 2));
-                tags.push(
-                    Paragraph::new(Span::styled(label, Style::default()))
-                        .block(Block::new().borders(Borders::ALL)),
-                );
+                for label in labels {
+                    constraints.push(Constraint::Length(label.len() as u16 + 2));
+                    tags.push(
+                        Paragraph::new(Span::styled(label, Style::default()))
+                            .block(Block::new().borders(Borders::ALL)),
+                    );
+                }
+
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints(constraints)
+                    .flex(Flex::Start)
+                    .split(info_chunks[2]);
+
+                for (tag, chunk) in tags.iter().zip(chunks.iter()) {
+                    render_frame.render_widget(tag, *chunk);
+                }
             }
-
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(constraints)
-                .flex(Flex::Start)
-                .split(info_chunks[2]);
-
-            for (tag, chunk) in tags.iter().zip(chunks.iter()) {
-                render_frame.render_widget(tag, *chunk);
-            }
-        }
+        */
     }
 }
 
@@ -171,7 +173,6 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 
     fn render(&mut self, render_frame: &mut Frame, layout: &std::rc::Rc<[Rect]>) -> () {
         let render_area = layout[self.layout_position];
-
         render_frame.render_widget(Clear, render_area);
 
         let items = self.collection.get_items();
@@ -182,7 +183,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 
         let mut constraints: Vec<Constraint> = vec![];
         for _ in 0..items.len() {
-            constraints.push(Constraint::Length(7));
+            constraints.push(Constraint::Length(2));
         }
 
         let chunks = Layout::default()
@@ -228,7 +229,6 @@ pub fn create_issues_view(
     ListView::new(layout_position, collection)
 }
 
-// Example of creating a pull requests view
 pub fn create_pull_requests_view(
     layout_position: usize,
     data: pull_requests_query::PullRequestsQueryRepository,

@@ -2,10 +2,9 @@ use std::{error::Error, path::PathBuf, rc::Rc, sync::mpsc, thread};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Tabs},
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    widgets::{Block, Borders, Clear},
     Frame,
 };
 use regex::Regex;
@@ -27,6 +26,12 @@ use super::{
     remote_explorer::{RemoteExplorer, REMOTE_EXPLORER_NAME},
     UiStack,
 };
+
+pub const ISSUES_LAYOUT_POSITION: usize = 0;
+pub const PULL_REQUESTS_LAYOUT_POSITION: usize = 1;
+pub const PROJECTS_LAYOUT_POSITION: usize = 2;
+pub const PREVIEW_LAYOUT_POSITION: usize = 0;
+pub const STATUS_LAYOUT_POSITION: usize = 1;
 
 #[derive(Hash, PartialEq, Eq)]
 pub enum MenuItem {
@@ -289,38 +294,47 @@ impl PanelElement for TabMenu {
     }
 
     fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) -> () {
-        let menu_string_items = MenuItem::to_string_array();
-        let menu: Vec<Line> = menu_string_items
-            .iter()
-            .map(|title| {
-                let (first, rest) = title.split_at(1);
-                Line::from(vec![
-                    Span::styled(
-                        first,
-                        Style::default()
-                            .fg(Color::Red)
-                            .add_modifier(Modifier::UNDERLINED),
-                    ),
-                    Span::styled(rest, Style::default().fg(Color::White)),
-                ])
-            })
-            .collect();
+        let render_area = layout[self.layout_position];
+        render_frame.render_widget(Clear, render_area);
 
-        let tabs = Tabs::new(menu)
-            .select((&self.active_menu_item).into())
-            .block(
-                Block::default()
-                    .title(String::from(&self.active_menu_item))
-                    .borders(Borders::ALL),
-            )
-            .style(Style::default().fg(Color::White))
-            .highlight_style(Style::default().fg(Color::Red))
-            .divider(Span::raw("|"));
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
+            .split(render_area);
 
-        render_frame.render_widget(tabs, layout[self.layout_position]);
+        let menu_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Percentage(34), // Issues
+                Constraint::Percentage(33), // PullRequests
+                Constraint::Percentage(33), // Projects
+            ])
+            .split(horizontal_chunks[0]);
+
+        let mut inner_menu_chunks: Vec<Rect> = vec![];
+
+        let menu_items = MenuItem::to_main_menu_points();
+        for (item, chunk) in menu_items.iter().zip(menu_chunks.iter()) {
+            let is_highlighted = *item == self.active_menu_item;
+            let inner_chunk = Self::display_menu_item(item, render_frame, *chunk, is_highlighted);
+            inner_menu_chunks.push(inner_chunk);
+        }
+
+        let inspect_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
+            .split(horizontal_chunks[1]);
+
+        let panel_layout: Rc<[Rect]> = Rc::new([
+            inner_menu_chunks[ISSUES_LAYOUT_POSITION],        // Issues
+            inner_menu_chunks[PULL_REQUESTS_LAYOUT_POSITION], // Pull Requests
+            inner_menu_chunks[PROJECTS_LAYOUT_POSITION],      // Projects
+            inspect_chunks[PREVIEW_LAYOUT_POSITION],
+            inspect_chunks[STATUS_LAYOUT_POSITION],
+        ]);
 
         for panel in self.ui_stack.iter() {
-            panel.render(render_frame, &layout)
+            panel.render(render_frame, &panel_layout)
         }
     }
 
