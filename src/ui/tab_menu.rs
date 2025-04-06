@@ -158,6 +158,30 @@ impl TabMenu {
         Ok(())
     }
 
+    fn display_menu_item(
+        menu_item: &MenuItem,
+        render_frame: &mut Frame,
+        area: Rect,
+        is_highlighted: bool,
+    ) -> Rect {
+        let item_style = if is_highlighted {
+            Style::default().fg(Color::LightGreen)
+        } else {
+            Style::default()
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .style(item_style)
+            .title(format!("[{}]", String::from(menu_item)));
+
+        let block_inner = block.inner(area);
+
+        render_frame.render_widget(block, area);
+
+        block_inner
+    }
+
     fn send_request(&self, request_type: RequestType) -> Result<(), Box<dyn Error>> {
         if self.config.github_token.is_none() {
             log::info!("Github token not set.");
