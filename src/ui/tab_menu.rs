@@ -266,10 +266,6 @@ impl PanelElement for TabMenu {
                         _ => (),
                     }
                 }
-                KeyCode::Char('A') => {
-                    self.active_menu_item = MenuItem::Actions;
-                    self.ui_stack.clear();
-                }
                 KeyCode::Char('R') => {
                     self.active_menu_item = MenuItem::Projects;
                     self.ui_stack.clear();
