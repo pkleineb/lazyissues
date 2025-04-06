@@ -212,7 +212,7 @@ impl TerminalApp {
         let size = render_frame.area();
         Layout::default()
             .direction(ratatui::layout::Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(2)].as_ref())
+            .constraints([Constraint::Min(2)].as_ref())
             .split(size)
     }
 
