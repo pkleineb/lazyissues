@@ -31,21 +31,16 @@ use super::{
 #[derive(Hash, PartialEq, Eq)]
 pub enum MenuItem {
     Issues,
-    IssueView,
     PullRequests,
-    PullRequestView,
-    Actions,
     Projects,
-    ProjectsView,
 }
 
 impl From<&MenuItem> for usize {
     fn from(input: &MenuItem) -> usize {
         match input {
-            MenuItem::Issues | MenuItem::IssueView => 0,
-            MenuItem::PullRequests | MenuItem::PullRequestView => 1,
-            MenuItem::Actions => 2,
-            MenuItem::Projects | MenuItem::ProjectsView => 3,
+            MenuItem::Issues => 0,
+            MenuItem::PullRequests => 1,
+            MenuItem::Projects => 2,
         }
     }
 }
@@ -53,22 +48,20 @@ impl From<&MenuItem> for usize {
 impl From<&MenuItem> for String {
     fn from(input: &MenuItem) -> String {
         match input {
-            MenuItem::Issues | MenuItem::IssueView => "Issues".to_string(),
-            MenuItem::PullRequests | MenuItem::PullRequestView => "Pull requests".to_string(),
-            MenuItem::Actions => "Actions".to_string(),
-            MenuItem::Projects | MenuItem::ProjectsView => "Projects".to_string(),
+            MenuItem::Issues => "Issues".to_string(),
+            MenuItem::PullRequests => "Pull requests".to_string(),
+            MenuItem::Projects => "Projects".to_string(),
         }
     }
 }
 
 impl MenuItem {
-    fn to_string_array() -> [String; 4] {
-        return [
-            "Issues".to_string(),
-            "Pull requests".to_string(),
-            "Actions".to_string(),
-            "Projects".to_string(),
-        ];
+    fn to_main_menu_points_str() -> [&'static str; 3] {
+        return ["Issues", "Pull requests", "Projects"];
+    }
+
+    fn to_main_menu_points() -> [MenuItem; 3] {
+        return [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects];
     }
 }
 
