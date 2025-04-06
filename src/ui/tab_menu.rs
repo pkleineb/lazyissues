@@ -140,7 +140,14 @@ impl TabMenu {
             match tab_menu.send_request(RequestType::IssuesRequest) {
                 Err(error) => log::error!("{} occured during initial issue fetch request.", error),
                 _ => (),
-            }
+            };
+            match tab_menu.send_request(RequestType::PullRequestsRequest) {
+                Err(error) => log::error!(
+                    "{} occured during initial pull request fetch request.",
+                    error
+                ),
+                _ => (),
+            };
         } else {
             tab_menu.open_remote_explorer()?;
         }
