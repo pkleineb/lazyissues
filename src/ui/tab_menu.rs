@@ -281,7 +281,6 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
-                    self.ui_stack.clear();
                     match self.send_request(RequestType::IssuesRequest) {
                         Err(error) => {
                             log::error!("{} occured during sending of issue request", error);
@@ -291,7 +290,6 @@ impl PanelElement for TabMenu {
                 }
                 KeyCode::Char('P') => {
                     self.active_menu_item = MenuItem::PullRequests;
-                    self.ui_stack.clear();
                     match self.send_request(RequestType::PullRequestsRequest) {
                         Err(error) => {
                             log::error!(
