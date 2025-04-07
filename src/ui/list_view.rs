@@ -35,6 +35,8 @@ pub struct ListView<T: ListCollection + 'static> {
     collection: T,
     item_amount: usize,
     selected_item: usize,
+
+    is_focused: bool,
 }
 
 impl<T: ListCollection + 'static> ListView<T> {
@@ -42,9 +44,12 @@ impl<T: ListCollection + 'static> ListView<T> {
         let item_amount = collection.get_items().len();
         Self {
             layout_position,
+
             collection,
             item_amount,
             selected_item: 0,
+
+            is_focused: false,
         }
     }
 
@@ -64,6 +69,7 @@ impl<T: ListCollection + 'static> ListView<T> {
     }
 
     fn display_item(
+        &self,
         item: &dyn ListItem,
         render_frame: &mut Frame,
         area: Rect,
@@ -76,7 +82,8 @@ impl<T: ListCollection + 'static> ListView<T> {
         };
         let status = if item.is_closed() { "✓" } else { "○" };
 
-        let item_style = if is_highlighted {
+        log::debug!("item style if: {} && {}", is_highlighted, self.is_focused);
+        let item_style = if is_highlighted && self.is_focused {
             Style::default().bg(Color::Rgb(120, 120, 120))
         } else {
             Style::default()
@@ -151,7 +158,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
             } => match key_event.code {
                 KeyCode::Tab => {
                     self.select_next_item();
-                    false
+                    true
                 }
                 _ => false,
             },
@@ -161,7 +168,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
             } => match key_event.code {
                 KeyCode::BackTab => {
                     self.select_previous_item();
-                    false
+                    true
                 }
                 _ => false,
             },
@@ -193,7 +200,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 
         for (i, (item, chunk)) in items.iter().zip(chunks.iter()).enumerate() {
             let is_highlighted = i == self.selected_item;
-            Self::display_item(item.as_ref(), render_frame, *chunk, is_highlighted);
+            self.display_item(item.as_ref(), render_frame, *chunk, is_highlighted);
         }
     }
 
@@ -218,6 +225,12 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 
     fn wants_to_quit(&self) -> bool {
         false
+    }
+
+    fn set_focus(&mut self, state: bool) -> bool {
+        log::debug!("focused set to {}", state);
+        self.is_focused = state;
+        true
     }
 }
 

@@ -1,6 +1,7 @@
 use std::{
     any::Any,
     collections::{BTreeMap, HashMap},
+    net::ToSocketAddrs,
     rc::Rc,
 };
 
@@ -16,6 +17,7 @@ pub trait PanelElement {
     fn tick(&mut self) -> ();
     fn update(&mut self, data: Box<dyn Any>) -> bool;
     fn wants_to_quit(&self) -> bool;
+    fn set_focus(&mut self, state: bool) -> bool;
 }
 
 pub struct UiStack {
@@ -112,5 +114,71 @@ impl UiStack {
         &mut self,
     ) -> impl Iterator<Item = (&u8, &mut Box<dyn PanelElement>)> {
         self.panels.iter_mut()
+    }
+
+    pub fn select_panel(&mut self, name: &str) -> bool {
+        let success = match self.get_panel_mut_ref_by_name(name) {
+            Some(panel) => panel.set_focus(true),
+            None => {
+                log::debug!(
+                    "Panel with name: {} was not in ui stack and therefore can't be selected.",
+                    name
+                );
+                false
+            }
+        };
+
+        if !success {
+            return false;
+        }
+
+        if self
+            .panel_names
+            .get(name)
+            .expect("Has to exist because otherwise we would have returned ealier.")
+            != &self.get_highest_priority()
+        {
+            if let Some(old_panel) = self.panels.get_mut(&self.get_highest_priority()) {
+                old_panel.set_focus(false);
+            }
+        }
+
+        self.set_panel_priority_by_name(self.get_highest_priority() + 1, name);
+        self.normalize_priorities();
+
+        true
+    }
+
+    pub fn set_panel_priority_by_name(&mut self, new_priority: u8, name: &str) {
+        if let Some(&priority) = self.panel_names.get(name) {
+            if new_priority == priority {
+                return;
+            }
+
+            if let Some(panel) = self.panels.remove(&priority) {
+                self.panel_names.insert(name.to_string(), new_priority);
+                self.panels.insert(new_priority, panel);
+                log::debug!("Set panel {} priority to {}", name, new_priority);
+            }
+        } else {
+            log::debug!("Panel with name: {} was not in ui stack and can therefore not have it's priority changed.", name)
+        }
+    }
+
+    pub fn normalize_priorities(&mut self) {
+        if self.panels.is_empty() {
+            return;
+        }
+
+        let mut new_panels = BTreeMap::new();
+        let mut index: u8 = 0;
+        while !self.panels.is_empty() {
+            let (_, panel) = self.panels.pop_first().expect("self.panels is not empty");
+
+            new_panels.insert(index, panel);
+            index += 1;
+        }
+
+        self.panels = new_panels;
     }
 }

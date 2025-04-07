@@ -36,6 +36,7 @@ pub struct RemoteExplorer {
     remote_sender: mpsc::Sender<RepoData>,
 
     quit: bool,
+    is_focused: bool,
 }
 
 impl RemoteExplorer {
@@ -57,6 +58,7 @@ impl RemoteExplorer {
             remote_sender,
 
             quit: false,
+            is_focused: false,
         };
         explorer.update_items()?;
         Ok(explorer)
@@ -238,5 +240,10 @@ impl PanelElement for RemoteExplorer {
 
     fn wants_to_quit(&self) -> bool {
         self.quit
+    }
+
+    fn set_focus(&mut self, state: bool) -> bool {
+        self.is_focused = state;
+        true
     }
 }

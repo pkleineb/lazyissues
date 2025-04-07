@@ -281,6 +281,8 @@ impl PanelElement for TabMenu {
             } => match key_event.code {
                 KeyCode::Char('I') => {
                     self.active_menu_item = MenuItem::Issues;
+                    self.ui_stack.select_panel(ISSUES_VIEW_NAME);
+
                     match self.send_request(RequestType::IssuesRequest) {
                         Err(error) => {
                             log::error!("{} occured during sending of issue request", error);
@@ -290,6 +292,8 @@ impl PanelElement for TabMenu {
                 }
                 KeyCode::Char('P') => {
                     self.active_menu_item = MenuItem::PullRequests;
+                    self.ui_stack.select_panel(ISSUES_VIEW_NAME);
+
                     match self.send_request(RequestType::PullRequestsRequest) {
                         Err(error) => {
                             log::error!(
@@ -328,7 +332,7 @@ impl PanelElement for TabMenu {
 
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
+            .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
             .split(render_area);
 
         let menu_chunks = Layout::default()
@@ -464,5 +468,9 @@ impl PanelElement for TabMenu {
 
     fn wants_to_quit(&self) -> bool {
         self.quit
+    }
+
+    fn set_focus(&mut self, state: bool) -> bool {
+        false
     }
 }
