@@ -207,6 +207,17 @@ pub mod github {
             }
             items
         }
+
+        fn from_repository_data(
+            data: Box<dyn std::any::Any>,
+        ) -> Result<Self, Box<dyn std::error::Error>> {
+            match data.downcast::<issues_query::IssuesQueryRepository>() {
+                Ok(issues_repo) => Ok(Self::new(*issues_repo)),
+                Err(other) => Err(
+                    format!("Couldn't downcast to pull_requests_query::PullRequestsQueryRepository. Other value was: {:?}", other.type_id()).into(),
+                ),
+            }
+        }
     }
 
     impl ListItem for pull_requests_query::PullRequestsQueryRepositoryPullRequestsNodes {
@@ -267,6 +278,17 @@ pub mod github {
                 }
             }
             items
+        }
+
+        fn from_repository_data(
+            data: Box<dyn std::any::Any>,
+        ) -> Result<Self, Box<dyn std::error::Error>> {
+            match data.downcast::<pull_requests_query::PullRequestsQueryRepository>() {
+                Ok(issues_repo) => Ok(Self::new(*issues_repo)),
+                Err(other) => Err(
+                    format!("Couldn't downcast to pull_requests_query::PullRequestsQueryRepository. Other value was: {:?}", other.type_id()).into(),
+                ),
+            }
         }
     }
 }

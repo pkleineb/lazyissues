@@ -136,6 +136,8 @@ impl TabMenu {
             quit: false,
         };
 
+        tab_menu.add_menu_panels();
+
         if tab_menu.active_remote.is_some() {
             match tab_menu.send_request(RequestType::IssuesRequest) {
                 Err(error) => log::error!("{} occured during initial issue fetch request.", error),
@@ -153,6 +155,34 @@ impl TabMenu {
         }
 
         Ok(tab_menu)
+    }
+
+    fn add_menu_panels(&mut self) {
+        self.ui_stack.add_panel(
+            create_issues_view(
+                ISSUES_LAYOUT_POSITION,
+                issues_query::IssuesQueryRepository {
+                    issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
+                },
+            ),
+            self.ui_stack.get_highest_priority() + 1,
+            ISSUES_VIEW_NAME,
+        );
+
+        self.ui_stack.add_panel(
+            create_pull_requests_view(
+                PULL_REQUESTS_LAYOUT_POSITION,
+                pull_requests_query::PullRequestsQueryRepository {
+                    pull_requests: pull_requests_query::PullRequestsQueryRepositoryPullRequests {
+                        nodes: None,
+                    },
+                },
+            ),
+            self.ui_stack.get_highest_priority() + 1,
+            PULL_REQUESTS_VIEW_NAME,
+        );
+
+        self.ui_stack.select_panel(ISSUES_VIEW_NAME);
     }
 
     fn open_remote_explorer(&mut self) -> Result<(), git2::Error> {
@@ -261,7 +291,7 @@ impl TabMenu {
 
 impl PanelElement for TabMenu {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool {
-        for panel in self.ui_stack.iter_rev() {
+        for panel in self.ui_stack.iter() {
             if panel.handle_input(key_event) {
                 return true;
             }
@@ -292,7 +322,7 @@ impl PanelElement for TabMenu {
                 }
                 KeyCode::Char('P') => {
                     self.active_menu_item = MenuItem::PullRequests;
-                    self.ui_stack.select_panel(ISSUES_VIEW_NAME);
+                    self.ui_stack.select_panel(PULL_REQUESTS_VIEW_NAME);
 
                     match self.send_request(RequestType::PullRequestsRequest) {
                         Err(error) => {

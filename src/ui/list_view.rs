@@ -1,3 +1,5 @@
+use std::any::type_name;
+
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Flex, Layout, Rect},
@@ -26,6 +28,11 @@ pub trait ListItem: std::fmt::Debug {
 }
 
 pub trait ListCollection {
+    fn from_repository_data(
+        data: Box<dyn std::any::Any>,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized;
     fn get_items(&self) -> Vec<Box<dyn ListItem>>;
 }
 
@@ -82,7 +89,6 @@ impl<T: ListCollection + 'static> ListView<T> {
         };
         let status = if item.is_closed() { "✓" } else { "○" };
 
-        log::debug!("item style if: {} && {}", is_highlighted, self.is_focused);
         let item_style = if is_highlighted && self.is_focused {
             Style::default().bg(Color::Rgb(120, 120, 120))
         } else {
@@ -157,6 +163,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
                 ..
             } => match key_event.code {
                 KeyCode::Tab => {
+                    log::debug!("{:?}", type_name::<T>());
                     self.select_next_item();
                     true
                 }
@@ -205,8 +212,8 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
     }
 
     fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
-        if let Ok(collection) = data.downcast::<T>() {
-            self.collection = *collection;
+        if let Ok(collection) = T::from_repository_data(data) {
+            self.collection = collection;
             self.item_amount = self.collection.get_items().len();
 
             self.selected_item = if self.selected_item < self.item_amount {
@@ -228,7 +235,6 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
     }
 
     fn set_focus(&mut self, state: bool) -> bool {
-        log::debug!("focused set to {}", state);
         self.is_focused = state;
         true
     }

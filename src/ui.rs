@@ -132,6 +132,7 @@ impl UiStack {
             return false;
         }
 
+        /*
         if self
             .panel_names
             .get(name)
@@ -141,10 +142,10 @@ impl UiStack {
             if let Some(old_panel) = self.panels.get_mut(&self.get_highest_priority()) {
                 old_panel.set_focus(false);
             }
-        }
+        }*/
 
-        self.set_panel_priority_by_name(self.get_highest_priority() + 1, name);
-        self.normalize_priorities();
+        //self.set_panel_priority_by_name(self.get_highest_priority() + 1, name);
+        //self.normalize_priorities();
 
         true
     }
