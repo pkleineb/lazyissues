@@ -143,8 +143,8 @@ impl UiStack {
             }
         }
 
-        //self.normalize_priorities();
         self.set_panel_priority_by_name(self.get_highest_priority() + 1, name);
+        self.normalize_priorities();
 
         true
     }
@@ -158,27 +158,39 @@ impl UiStack {
             if let Some(panel) = self.panels.remove(&priority) {
                 self.panel_names.insert(name.to_string(), new_priority);
                 self.panels.insert(new_priority, panel);
-                log::debug!("Set panel {} priority to {}", name, new_priority);
             }
         } else {
             log::debug!("Panel with name: {} was not in ui stack and can therefore not have it's priority changed.", name)
         }
     }
 
+    // this works but doesn't feel very well coded so I am not sure if I want to keep this
     pub fn normalize_priorities(&mut self) {
         if self.panels.is_empty() {
             return;
         }
 
         let mut new_panels = BTreeMap::new();
+        let mut new_panel_names = HashMap::new();
         let mut index: u8 = 0;
+
+        let panel_names_copy = self.panel_names.clone();
+
         while !self.panels.is_empty() {
-            let (_, panel) = self.panels.pop_first().expect("self.panels is not empty");
+            let (old_priority, panel) = self.panels.pop_first().expect("self.panels is not empty");
 
             new_panels.insert(index, panel);
+
+            for (panel_name, &priority) in &panel_names_copy {
+                if priority == old_priority {
+                    new_panel_names.insert(panel_name.clone(), index);
+                }
+            }
+
             index += 1;
         }
 
         self.panels = new_panels;
+        self.panel_names = new_panel_names;
     }
 }
