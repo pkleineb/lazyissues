@@ -165,7 +165,7 @@ impl TabMenu {
                     issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
                 },
             ),
-            self.ui_stack.get_highest_priority() + 1,
+            1,
             ISSUES_VIEW_NAME,
         );
 
@@ -178,7 +178,7 @@ impl TabMenu {
                     },
                 },
             ),
-            self.ui_stack.get_highest_priority() + 1,
+            0,
             PULL_REQUESTS_VIEW_NAME,
         );
 
@@ -291,7 +291,7 @@ impl TabMenu {
 
 impl PanelElement for TabMenu {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool {
-        for panel in self.ui_stack.iter() {
+        for panel in self.ui_stack.iter_rev() {
             if panel.handle_input(key_event) {
                 return true;
             }
