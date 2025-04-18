@@ -13,15 +13,16 @@ use tokio::runtime::Runtime;
 use crate::{
     config::{git::get_git_repo_root, Config, State},
     graphql_requests::github::{
-        issues_query, perform_issues_query, perform_pull_requests_query, pull_requests_query,
-        VariableStore,
+        issues_query, perform_issues_query, perform_projects_query, perform_pull_requests_query,
+        projects_query, pull_requests_query, VariableStore,
     },
     ui::PanelElement,
 };
 
 use super::{
     list_view::{
-        create_issues_view, create_pull_requests_view, ISSUES_VIEW_NAME, PULL_REQUESTS_VIEW_NAME,
+        create_issues_view, create_projects_view, create_pull_requests_view, ISSUES_VIEW_NAME,
+        PROJECTS_VIEW_NAME, PULL_REQUESTS_VIEW_NAME,
     },
     remote_explorer::{RemoteExplorer, REMOTE_EXPLORER_NAME},
     UiStack,
@@ -70,9 +71,29 @@ impl MenuItem {
     }
 }
 
+#[derive(Debug)]
 pub enum RequestType {
     IssuesRequest,
     PullRequestsRequest,
+    ProjectsRequest,
+}
+
+impl RequestType {
+    fn all() -> Vec<RequestType> {
+        vec![
+            RequestType::IssuesRequest,
+            RequestType::PullRequestsRequest,
+            RequestType::ProjectsRequest,
+        ]
+    }
+
+    fn to_str(&self) -> &'static str {
+        match self {
+            RequestType::IssuesRequest => "IssuesRequest",
+            RequestType::PullRequestsRequest => "PullRequestsRequest",
+            RequestType::ProjectsRequest => "ProjectsRequest",
+        }
+    }
 }
 
 pub enum RepoData {
@@ -80,6 +101,7 @@ pub enum RepoData {
 
     IssuesData(issues_query::ResponseData),
     PullRequestsData(pull_requests_query::ResponseData),
+    ProjectsData(projects_query::ResponseData),
 }
 
 pub struct TabMenu {
@@ -139,22 +161,26 @@ impl TabMenu {
         tab_menu.add_menu_panels();
 
         if tab_menu.active_remote.is_some() {
-            match tab_menu.send_request(RequestType::IssuesRequest) {
-                Err(error) => log::error!("{} occured during initial issue fetch request.", error),
-                _ => (),
-            };
-            match tab_menu.send_request(RequestType::PullRequestsRequest) {
-                Err(error) => log::error!(
-                    "{} occured during initial pull request fetch request.",
-                    error
-                ),
-                _ => (),
-            };
+            tab_menu.request_all();
         } else {
             tab_menu.open_remote_explorer()?;
         }
 
         Ok(tab_menu)
+    }
+
+    fn request_all(&self) {
+        for request_type in RequestType::all().drain(..) {
+            let request_type_string = request_type.to_str();
+            match self.send_request(request_type) {
+                Err(error) => log::error!(
+                    "{} occured during initial {:?} request",
+                    error,
+                    request_type_string
+                ),
+                _ => (),
+            }
+        }
     }
 
     fn add_menu_panels(&mut self) {
@@ -165,7 +191,7 @@ impl TabMenu {
                     issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
                 },
             ),
-            1,
+            2,
             ISSUES_VIEW_NAME,
         );
 
@@ -180,6 +206,17 @@ impl TabMenu {
             ),
             0,
             PULL_REQUESTS_VIEW_NAME,
+        );
+
+        self.ui_stack.add_panel(
+            create_projects_view(
+                PROJECTS_LAYOUT_POSITION,
+                projects_query::ProjectsQueryRepository {
+                    projects_v2: projects_query::ProjectsQueryRepositoryProjectsV2 { nodes: None },
+                },
+            ),
+            1,
+            PROJECTS_VIEW_NAME,
         );
 
         self.ui_stack.select_panel(ISSUES_VIEW_NAME);
@@ -280,6 +317,18 @@ impl TabMenu {
                             }
                             _ => (),
                         },
+                        RequestType::ProjectsRequest => match perform_projects_query(
+                            cloned_sender,
+                            variables.into(),
+                            cloned_access_token,
+                        )
+                        .await
+                        {
+                            Err(error) => {
+                                log::error!("projects_query returned an error. {}", error)
+                            }
+                            _ => (),
+                        },
                     }
                 });
             }
@@ -336,7 +385,14 @@ impl PanelElement for TabMenu {
                 }
                 KeyCode::Char('R') => {
                     self.active_menu_item = MenuItem::Projects;
-                    self.ui_stack.clear();
+                    self.ui_stack.select_panel(PROJECTS_VIEW_NAME);
+
+                    match self.send_request(RequestType::ProjectsRequest) {
+                        Err(error) => {
+                            log::error!("{} occured during sending of projects request", error);
+                        }
+                        _ => (),
+                    }
                 }
                 _ => (),
             },
@@ -445,6 +501,25 @@ impl PanelElement for TabMenu {
                                 create_pull_requests_view(PULL_REQUESTS_LAYOUT_POSITION, repo_data),
                                 top_priority,
                                 PULL_REQUESTS_VIEW_NAME,
+                            );
+                        }
+                    }
+                    None => {
+                        log::debug!("Couldn't display issues since there was no repository in response data")
+                    }
+                },
+                RepoData::ProjectsData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        if let Some(panel) =
+                            self.ui_stack.get_panel_mut_ref_by_name(PROJECTS_VIEW_NAME)
+                        {
+                            panel.update(Box::new(repo_data));
+                        } else {
+                            self.ui_stack.add_panel(
+                                create_projects_view(PROJECTS_LAYOUT_POSITION, repo_data),
+                                top_priority,
+                                PROJECTS_VIEW_NAME,
                             );
                         }
                     }

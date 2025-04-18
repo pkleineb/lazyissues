@@ -43,3 +43,21 @@ query PullRequestsQuery($repo_name: String!, $repo_owner: String!) {
     }
   }
 }
+
+query ProjectsQuery($repo_name: String!, $repo_owner: String!) {
+  repository(name: $repo_name, owner: $repo_owner) {
+    projectsV2 (first: 10) {
+      nodes {
+        title
+        closed
+        id
+        creator {
+          __typename
+          login
+        }
+        createdAt
+        number
+      }
+    }
+  }
+}

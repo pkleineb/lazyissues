@@ -43,6 +43,15 @@ pub mod github {
         }
     }
 
+    impl Into<projects_query::Variables> for VariableStore {
+        fn into(self) -> projects_query::Variables {
+            projects_query::Variables {
+                repo_name: self.repo_name,
+                repo_owner: self.repo_owner,
+            }
+        }
+    }
+
     pub mod types {
         use serde::{Deserialize, Serialize};
 
@@ -89,6 +98,9 @@ pub mod github {
 
         let text = response.text().await?;
         let response_body: Response<issues_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
+        if let Some(errors) = response_body.errors {
+            log::debug!("Found errors in request: {:?}", errors);
+        }
 
         match response_body.data {
             Some(data) => {
@@ -138,11 +150,66 @@ pub mod github {
         let response_body: Response<pull_requests_query::ResponseData> =
             serde_json::from_str(&text)?; //response.json().await?;
 
+        if let Some(errors) = response_body.errors {
+            log::debug!("Found errors in request: {:?}", errors);
+        }
+
         match response_body.data {
             Some(data) => {
                 // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
                 // it doesn't seem so
                 Ok(response_sender.send(RepoData::PullRequestsData(data))?)
+            }
+            None => Err("No response data returned.".into()),
+        }
+    }
+
+    #[derive(GraphQLQuery)]
+    #[graphql(
+        schema_path = "src/graphql/schema.github.graphql",
+        query_path = "src/graphql/queries.github.graphql",
+        response_derives = "Debug, Clone, PartialEq",
+        custom_scalars_module = "types"
+    )]
+    pub struct ProjectsQuery;
+
+    pub async fn perform_projects_query(
+        response_sender: mpsc::Sender<RepoData>,
+        variables: projects_query::Variables,
+        access_token: String,
+    ) -> Result<(), Box<dyn Error>> {
+        let request_body = ProjectsQuery::build_query(variables);
+
+        let client = reqwest::Client::builder()
+            .user_agent("LazyIssues/0.1.0")
+            .default_headers({
+                let mut headers = header::HeaderMap::new();
+                headers.insert(
+                    header::AUTHORIZATION,
+                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                );
+                headers
+            })
+            .build()?;
+
+        let response = client
+            .post(GITHUB_GRAPHQL_ENDPOINT)
+            .json(&request_body)
+            .send()
+            .await?;
+
+        let text = response.text().await?;
+        let response_body: Response<projects_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
+
+        if let Some(errors) = response_body.errors {
+            log::debug!("Found errors in request: {:?}", errors);
+        }
+
+        match response_body.data {
+            Some(data) => {
+                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
+                // it doesn't seem so
+                Ok(response_sender.send(RepoData::ProjectsData(data))?)
             }
             None => Err("No response data returned.".into()),
         }
@@ -287,6 +354,71 @@ pub mod github {
                 Ok(issues_repo) => Ok(Self::new(*issues_repo)),
                 Err(other) => Err(
                     format!("Couldn't downcast to pull_requests_query::PullRequestsQueryRepository. Other value was: {:?}", other.type_id()).into(),
+                ),
+            }
+        }
+    }
+
+    impl ListItem for projects_query::ProjectsQueryRepositoryProjectsV2Nodes {
+        fn get_title(&self) -> &str {
+            &self.title
+        }
+
+        fn get_number(&self) -> i64 {
+            self.number
+        }
+
+        fn is_closed(&self) -> bool {
+            self.closed
+        }
+
+        fn get_author_login(&self) -> Option<&str> {
+            self.creator.as_ref().map(|author| &author.login[..])
+        }
+
+        fn get_created_at(&self) -> &str {
+            &self.created_at.0
+        }
+
+        fn get_labels(&self) -> Vec<String> {
+            vec![]
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct ProjectsCollection {
+        repository: projects_query::ProjectsQueryRepository,
+    }
+
+    impl ProjectsCollection {
+        pub fn new(repository: projects_query::ProjectsQueryRepository) -> Self {
+            Self { repository }
+        }
+    }
+
+    impl ListCollection for ProjectsCollection {
+        fn get_items(&self) -> Vec<Box<dyn ListItem>> {
+            let mut items: Vec<Box<dyn ListItem>> = Vec::new();
+            if let Some(nodes) = &self.repository.projects_v2.nodes {
+                for node in nodes {
+                    if let Some(issue) = node {
+                        items.push(Box::new(issue.clone()));
+                    }
+                }
+            }
+            items
+        }
+
+        fn from_repository_data(
+            data: Box<dyn std::any::Any>,
+        ) -> Result<Self, Box<dyn std::error::Error>> {
+            match data.downcast::<projects_query::ProjectsQueryRepository>() {
+                Ok(projects_repo) => {
+                    log::debug!("{:?}", projects_repo);
+                    Ok(Self::new(*projects_repo))
+                },
+                Err(other) => Err(
+                    format!("Couldn't downcast to projects_query::ProjectsQueryRepository. Other value was: {:?}", other.type_id()).into(),
                 ),
             }
         }

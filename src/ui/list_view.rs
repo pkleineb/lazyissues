@@ -10,13 +10,15 @@ use ratatui::{
 };
 
 use crate::graphql_requests::github::{
-    issues_query, pull_requests_query, IssuesCollection, PullRequestsCollection,
+    issues_query, projects_query, pull_requests_query, IssuesCollection, ProjectsCollection,
+    PullRequestsCollection,
 };
 
 use super::PanelElement;
 
 pub const ISSUES_VIEW_NAME: &str = "issues_view";
 pub const PULL_REQUESTS_VIEW_NAME: &str = "pull_requests_view";
+pub const PROJECTS_VIEW_NAME: &str = "projects_view";
 
 pub trait ListItem: std::fmt::Debug {
     fn get_title(&self) -> &str;
@@ -253,5 +255,13 @@ pub fn create_pull_requests_view(
     data: pull_requests_query::PullRequestsQueryRepository,
 ) -> impl PanelElement {
     let collection = PullRequestsCollection::new(data);
+    ListView::new(layout_position, collection)
+}
+
+pub fn create_projects_view(
+    layout_position: usize,
+    data: projects_query::ProjectsQueryRepository,
+) -> impl PanelElement {
+    let collection = ProjectsCollection::new(data);
     ListView::new(layout_position, collection)
 }
