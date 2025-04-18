@@ -444,12 +444,22 @@ impl PanelElement for TabMenu {
             .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
             .split(horizontal_chunks[1]);
 
+        let mut inner_inspect_chunks: Vec<Rect> = vec![];
+        for chunk in inspect_chunks.iter() {
+            let block = Block::default().borders(Borders::ALL);
+
+            let block_inner = block.inner(*chunk);
+
+            render_frame.render_widget(block, *chunk);
+            inner_inspect_chunks.push(block_inner);
+        }
+
         let panel_layout: Rc<[Rect]> = Rc::new([
             inner_menu_chunks[ISSUES_LAYOUT_POSITION],        // Issues
             inner_menu_chunks[PULL_REQUESTS_LAYOUT_POSITION], // Pull Requests
             inner_menu_chunks[PROJECTS_LAYOUT_POSITION],      // Projects
-            inspect_chunks[PREVIEW_LAYOUT_POSITION],
-            inspect_chunks[STATUS_LAYOUT_POSITION],
+            inner_inspect_chunks[PREVIEW_LAYOUT_POSITION],
+            inner_inspect_chunks[STATUS_LAYOUT_POSITION],
         ]);
 
         for panel in self.ui_stack.iter() {
