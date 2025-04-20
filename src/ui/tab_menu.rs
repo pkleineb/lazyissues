@@ -336,6 +336,58 @@ impl TabMenu {
         });
         Ok(())
     }
+
+    fn select_next_menu_item(&mut self) {
+        match self.active_menu_item {
+            MenuItem::Issues => self.select_pull_requests_view(),
+            MenuItem::PullRequests => self.select_projects_view(),
+            MenuItem::Projects => self.select_issues_view(),
+        }
+    }
+
+    fn select_previous_menu_item(&mut self) {
+        match self.active_menu_item {
+            MenuItem::Issues => self.select_projects_view(),
+            MenuItem::PullRequests => self.select_issues_view(),
+            MenuItem::Projects => self.select_pull_requests_view(),
+        }
+    }
+
+    fn select_issues_view(&mut self) {
+        self.active_menu_item = MenuItem::Issues;
+        self.ui_stack.select_panel(ISSUES_VIEW_NAME);
+
+        match self.send_request(RequestType::IssuesRequest) {
+            Err(error) => {
+                log::error!("{} occured during sending of issue request", error);
+            }
+            _ => (),
+        }
+    }
+
+    fn select_pull_requests_view(&mut self) {
+        self.active_menu_item = MenuItem::PullRequests;
+        self.ui_stack.select_panel(PULL_REQUESTS_VIEW_NAME);
+
+        match self.send_request(RequestType::PullRequestsRequest) {
+            Err(error) => {
+                log::error!("{} occured during sending of pull requests request", error);
+            }
+            _ => (),
+        }
+    }
+
+    fn select_projects_view(&mut self) {
+        self.active_menu_item = MenuItem::Projects;
+        self.ui_stack.select_panel(PROJECTS_VIEW_NAME);
+
+        match self.send_request(RequestType::ProjectsRequest) {
+            Err(error) => {
+                log::error!("{} occured during sending of projects request", error);
+            }
+            _ => (),
+        }
+    }
 }
 
 impl PanelElement for TabMenu {
@@ -352,48 +404,17 @@ impl PanelElement for TabMenu {
                 ..
             } => match key_event.code {
                 KeyCode::Char('q') => self.quit = true,
+                KeyCode::Tab => self.select_next_menu_item(),
                 _ => (),
             },
             KeyEvent {
                 modifiers: KeyModifiers::SHIFT,
                 ..
             } => match key_event.code {
-                KeyCode::Char('I') => {
-                    self.active_menu_item = MenuItem::Issues;
-                    self.ui_stack.select_panel(ISSUES_VIEW_NAME);
-
-                    match self.send_request(RequestType::IssuesRequest) {
-                        Err(error) => {
-                            log::error!("{} occured during sending of issue request", error);
-                        }
-                        _ => (),
-                    }
-                }
-                KeyCode::Char('P') => {
-                    self.active_menu_item = MenuItem::PullRequests;
-                    self.ui_stack.select_panel(PULL_REQUESTS_VIEW_NAME);
-
-                    match self.send_request(RequestType::PullRequestsRequest) {
-                        Err(error) => {
-                            log::error!(
-                                "{} occured during sending of pull requests request",
-                                error
-                            );
-                        }
-                        _ => (),
-                    }
-                }
-                KeyCode::Char('R') => {
-                    self.active_menu_item = MenuItem::Projects;
-                    self.ui_stack.select_panel(PROJECTS_VIEW_NAME);
-
-                    match self.send_request(RequestType::ProjectsRequest) {
-                        Err(error) => {
-                            log::error!("{} occured during sending of projects request", error);
-                        }
-                        _ => (),
-                    }
-                }
+                KeyCode::BackTab => self.select_previous_menu_item(),
+                KeyCode::Char('I') => self.select_issues_view(),
+                KeyCode::Char('P') => self.select_pull_requests_view(),
+                KeyCode::Char('R') => self.select_projects_view(),
                 _ => (),
             },
             KeyEvent {
