@@ -71,7 +71,7 @@ impl MenuItem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum RequestType {
     IssuesRequest,
     PullRequestsRequest,
@@ -79,12 +79,13 @@ pub enum RequestType {
 }
 
 impl RequestType {
-    fn all() -> Vec<RequestType> {
-        vec![
+    fn iter() -> impl Iterator<Item = &'static RequestType> {
+        [
             RequestType::IssuesRequest,
             RequestType::PullRequestsRequest,
             RequestType::ProjectsRequest,
         ]
+        .iter()
     }
 
     fn to_str(&self) -> &'static str {
@@ -170,9 +171,9 @@ impl TabMenu {
     }
 
     fn request_all(&self) {
-        for request_type in RequestType::all().drain(..) {
+        for request_type in RequestType::iter() {
             let request_type_string = request_type.to_str();
-            match self.send_request(request_type) {
+            match self.send_request(*request_type) {
                 Err(error) => log::error!(
                     "{} occured during initial {:?} request",
                     error,
