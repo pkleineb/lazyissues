@@ -2,9 +2,9 @@ use std::any::type_name;
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
-    layout::{Constraint, Direction, Flex, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    text::{Line, Span},
+    text::Span,
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };

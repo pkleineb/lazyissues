@@ -1,6 +1,3 @@
-// started porting everything over to use traits so that i can generalise and also attribute the
-// key inputs to any panel; next up fix all the errors
-
 use std::{
     fs::{self, OpenOptions},
     io,
