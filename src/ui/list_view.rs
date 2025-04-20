@@ -164,18 +164,11 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => match key_event.code {
-                KeyCode::Tab => {
-                    log::debug!("{:?}", type_name::<T>());
+                KeyCode::Char('j') => {
                     self.select_next_item();
                     true
                 }
-                _ => false,
-            },
-            KeyEvent {
-                modifiers: KeyModifiers::SHIFT,
-                ..
-            } => match key_event.code {
-                KeyCode::BackTab => {
+                KeyCode::Char('k') => {
                     self.select_previous_item();
                     true
                 }
