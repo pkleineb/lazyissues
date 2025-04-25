@@ -145,7 +145,10 @@ impl<T: ListCollection + 'static> ListView<T> {
             for label in labels {
                 let label_fmt = format!("[{}]", label);
                 constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
-                tags.push(Paragraph::new(Span::styled(label_fmt, Style::default())));
+                tags.push(Paragraph::new(Span::styled(
+                    label_fmt,
+                    self.config.get_tag_color(&label),
+                )));
             }
 
             let chunks = Layout::default()
