@@ -121,7 +121,7 @@ pub struct Config {
     pub gitea_token: Option<String>,
     gitea_token_path: Option<PathBuf>,
 
-    pub tag_styles: HashMap<String, Color>,
+    tag_styles: HashMap<String, Color>,
 
     credential_attempts: u64,
     credential_timeout: u64,
@@ -140,7 +140,7 @@ impl Default for Config {
             tag_styles: HashMap::from([
                 ("bug".to_string(), Color::Red),
                 ("documentation".to_string(), Color::Blue),
-                ("duplicate".to_string(), Color::DarkGray),
+                ("duplicate".to_string(), Color::Gray),
                 ("enhancement".to_string(), Color::LightCyan),
                 ("good first issue".to_string(), Color::LightMagenta),
                 ("help wanted".to_string(), Color::Green),
@@ -255,6 +255,10 @@ impl Config {
                 },
             );
         }
+    }
+
+    pub fn get_tag_color(&self, tag: &str) -> Color {
+        self.tag_styles.get(tag).copied().unwrap_or(Color::White)
     }
 
     fn set_access_tokens(&mut self) -> Result<(), IoError> {
