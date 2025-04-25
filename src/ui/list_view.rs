@@ -1,11 +1,12 @@
 use std::any::type_name;
+use std::cmp::max;
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    layout::{Constraint, Direction, Flex, Layout, Rect},
+    style::{Color, Style, Stylize},
     text::Span,
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
 
@@ -102,19 +103,23 @@ impl<T: ListCollection + 'static> ListView<T> {
         let inner_area = outer_block.inner(area);
         render_frame.render_widget(outer_block, area);
 
-        let info_chunks = Layout::default()
-            .direction(Direction::Vertical)
+        let title = format!("[{}] #{} - {}", status, item.get_number(), item.get_title());
+        let created_at = item.get_created_at();
+
+        let horizontal_split = Layout::default()
+            .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(1),
-                Constraint::Length(1),
-                //Constraint::Length(1),
+                Constraint::Length(max(title.len(), created_at.len()).try_into().unwrap_or(30)),
+                Constraint::Fill(1),
             ])
             .split(inner_area);
 
-        let title_paragraph = Paragraph::new(Span::styled(
-            format!("[{}] #{} - {}", status, item.get_number(), item.get_title()),
-            status_style,
-        ));
+        let info_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Length(1)])
+            .split(horizontal_split[0]);
+
+        let title_paragraph = Paragraph::new(Span::styled(title, status_style));
         render_frame.render_widget(title_paragraph, info_chunks[0]);
 
         /*
@@ -123,37 +128,32 @@ impl<T: ListCollection + 'static> ListView<T> {
             render_frame.render_widget(author_paragraph, info_chunks[1]);
         }*/
 
-        let time_paragraph = Paragraph::new(Span::styled(
-            item.get_created_at(),
-            Style::default().fg(Color::Gray),
-        ));
+        let time_paragraph =
+            Paragraph::new(Span::styled(created_at, Style::default().fg(Color::Gray)));
         render_frame.render_widget(time_paragraph, info_chunks[1]);
 
-        /*
-            let labels = item.get_labels();
-            if !labels.is_empty() {
-                let mut tags: Vec<Paragraph> = vec![];
-                let mut constraints: Vec<Constraint> = vec![];
+        let labels = item.get_labels();
+        if !labels.is_empty() {
+            let mut tags: Vec<Paragraph> = vec![];
+            let mut constraints: Vec<Constraint> = vec![];
 
-                for label in labels {
-                    constraints.push(Constraint::Length(label.len() as u16 + 2));
-                    tags.push(
-                        Paragraph::new(Span::styled(label, Style::default()))
-                            .block(Block::new().borders(Borders::ALL)),
-                    );
-                }
-
-                let chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints(constraints)
-                    .flex(Flex::Start)
-                    .split(info_chunks[2]);
-
-                for (tag, chunk) in tags.iter().zip(chunks.iter()) {
-                    render_frame.render_widget(tag, *chunk);
-                }
+            for label in labels {
+                let label_fmt = format!("[{}]", label);
+                constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
+                tags.push(Paragraph::new(Span::styled(label_fmt, Style::default())));
             }
-        */
+
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(constraints)
+                .flex(Flex::Start)
+                .spacing(1)
+                .split(horizontal_split[1]);
+
+            for (tag, chunk) in tags.iter().zip(chunks.iter()) {
+                render_frame.render_widget(tag, *chunk);
+            }
+        }
     }
 }
 
