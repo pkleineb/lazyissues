@@ -1,12 +1,13 @@
 use dirs::config_local_dir;
 use kdl::{KdlDocument, KdlNode, KdlNodeFormat};
 use keyring::Entry;
-use serde::{Deserialize, Serialize};
+use ratatui::style::Color;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Error as IoError, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Output};
+use std::str::FromStr;
 use std::time::Duration;
 use std::{env, fs};
 
@@ -65,10 +66,6 @@ macro_rules! get_first_entry_as_int {
     };
 }
 
-macro_rules! get_children_as_vec_str {
-    () => {};
-}
-
 macro_rules! read_token_file_backend {
     ($backend:expr) => {
         if let Some(path) = $backend {
@@ -115,7 +112,7 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub github_token: Option<String>,
     github_token_path: Option<PathBuf>,
@@ -123,6 +120,8 @@ pub struct Config {
     gitlab_token_path: Option<PathBuf>,
     pub gitea_token: Option<String>,
     gitea_token_path: Option<PathBuf>,
+
+    pub tag_styles: HashMap<String, Color>,
 
     credential_attempts: u64,
     credential_timeout: u64,
@@ -137,6 +136,18 @@ impl Default for Config {
             gitlab_token_path: None,
             gitea_token: None,
             gitea_token_path: None,
+
+            tag_styles: HashMap::from([
+                ("bug".to_string(), Color::Red),
+                ("documentation".to_string(), Color::Blue),
+                ("duplicate".to_string(), Color::DarkGray),
+                ("enhancement".to_string(), Color::LightCyan),
+                ("good first issue".to_string(), Color::LightMagenta),
+                ("help wanted".to_string(), Color::Green),
+                ("invalid".to_string(), Color::Yellow),
+                ("question".to_string(), Color::Magenta),
+                ("wontfix".to_string(), Color::White),
+            ]),
 
             credential_attempts: 4,
             credential_timeout: 50,
@@ -209,8 +220,11 @@ impl Config {
                         .try_into()
                         .unwrap_or(50);
                 }
+                "tags" => {
+                    self.read_tag_node(node);
+                }
                 _ => {
-                    log::debug!("Option: {} is not a recognized option", option_name);
+                    log::info!("Option: {} is not a recognized option", option_name);
                 }
             },
             _ => {
@@ -222,6 +236,25 @@ impl Config {
             }
         }
         Ok(())
+    }
+
+    fn read_tag_node(&mut self, tag_node: &KdlNode) {
+        for child in tag_node.iter_children() {
+            self.tag_styles.insert(
+                child.name().value().to_string(),
+                match Color::from_str(get_first_entry_as_string!(child).unwrap_or("white")) {
+                    Ok(color) => color,
+                    Err(error) => {
+                        log::error!(
+                            "While parsing custom tag node: {} got error {}",
+                            child.name().value(),
+                            error
+                        );
+                        Color::White
+                    }
+                },
+            );
+        }
     }
 
     fn set_access_tokens(&mut self) -> Result<(), IoError> {
