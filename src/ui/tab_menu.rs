@@ -191,6 +191,7 @@ impl TabMenu {
                 issues_query::IssuesQueryRepository {
                     issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
                 },
+                self.config.clone(),
             ),
             2,
             ISSUES_VIEW_NAME,
@@ -204,6 +205,7 @@ impl TabMenu {
                         nodes: None,
                     },
                 },
+                self.config.clone(),
             ),
             0,
             PULL_REQUESTS_VIEW_NAME,
@@ -215,6 +217,7 @@ impl TabMenu {
                 projects_query::ProjectsQueryRepository {
                     projects_v2: projects_query::ProjectsQueryRepositoryProjectsV2 { nodes: None },
                 },
+                self.config.clone(),
             ),
             1,
             PROJECTS_VIEW_NAME,
@@ -510,7 +513,11 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_issues_view(ISSUES_LAYOUT_POSITION, repo_data),
+                                create_issues_view(
+                                    ISSUES_LAYOUT_POSITION,
+                                    repo_data,
+                                    self.config.clone(),
+                                ),
                                 top_priority,
                                 ISSUES_VIEW_NAME,
                             );
@@ -530,7 +537,11 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_pull_requests_view(PULL_REQUESTS_LAYOUT_POSITION, repo_data),
+                                create_pull_requests_view(
+                                    PULL_REQUESTS_LAYOUT_POSITION,
+                                    repo_data,
+                                    self.config.clone(),
+                                ),
                                 top_priority,
                                 PULL_REQUESTS_VIEW_NAME,
                             );
@@ -549,7 +560,11 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_projects_view(PROJECTS_LAYOUT_POSITION, repo_data),
+                                create_projects_view(
+                                    PROJECTS_LAYOUT_POSITION,
+                                    repo_data,
+                                    self.config.clone(),
+                                ),
                                 top_priority,
                                 PROJECTS_VIEW_NAME,
                             );

@@ -10,9 +10,12 @@ use ratatui::{
     Frame,
 };
 
-use crate::graphql_requests::github::{
-    issues_query, projects_query, pull_requests_query, IssuesCollection, ProjectsCollection,
-    PullRequestsCollection,
+use crate::{
+    config::Config,
+    graphql_requests::github::{
+        issues_query, projects_query, pull_requests_query, IssuesCollection, ProjectsCollection,
+        PullRequestsCollection,
+    },
 };
 
 use super::PanelElement;
@@ -45,12 +48,13 @@ pub struct ListView<T: ListCollection + 'static> {
     collection: T,
     item_amount: usize,
     selected_item: usize,
+    config: Config,
 
     is_focused: bool,
 }
 
 impl<T: ListCollection + 'static> ListView<T> {
-    pub fn new(layout_position: usize, collection: T) -> Self {
+    pub fn new(layout_position: usize, collection: T, config: Config) -> Self {
         let item_amount = collection.get_items().len();
         Self {
             layout_position,
@@ -58,6 +62,7 @@ impl<T: ListCollection + 'static> ListView<T> {
             collection,
             item_amount,
             selected_item: 0,
+            config,
 
             is_focused: false,
         }
@@ -238,23 +243,26 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 pub fn create_issues_view(
     layout_position: usize,
     data: issues_query::IssuesQueryRepository,
+    config: Config,
 ) -> impl PanelElement {
     let collection = IssuesCollection::new(data);
-    ListView::new(layout_position, collection)
+    ListView::new(layout_position, collection, config)
 }
 
 pub fn create_pull_requests_view(
     layout_position: usize,
     data: pull_requests_query::PullRequestsQueryRepository,
+    config: Config,
 ) -> impl PanelElement {
     let collection = PullRequestsCollection::new(data);
-    ListView::new(layout_position, collection)
+    ListView::new(layout_position, collection, config)
 }
 
 pub fn create_projects_view(
     layout_position: usize,
     data: projects_query::ProjectsQueryRepository,
+    config: Config,
 ) -> impl PanelElement {
     let collection = ProjectsCollection::new(data);
-    ListView::new(layout_position, collection)
+    ListView::new(layout_position, collection, config)
 }
