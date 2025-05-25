@@ -96,6 +96,8 @@ impl<T: ListCollection + 'static> ListView<T> {
             Style::default().fg(Color::Green)
         };
         let status = if item.is_closed() { "✓" } else { "○" };
+        let item_number = item.get_number();
+        let item_title = item.get_title();
 
         let item_style = if is_highlighted && self.is_focused {
             Style::default().bg(Color::Rgb(120, 120, 120))
@@ -108,13 +110,22 @@ impl<T: ListCollection + 'static> ListView<T> {
         let inner_area = outer_block.inner(area);
         render_frame.render_widget(outer_block, area);
 
-        let title = format!("[{}] #{} - {}", status, item.get_number(), item.get_title());
+        let title = format!("[{status}] #{item_number} - {item_title}");
+
         let created_at = item.get_created_at();
+        let author_name = item.get_author_login().unwrap_or("");
+        let lower_issue_info = format!("{author_name} @ {created_at}");
 
         let horizontal_split = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(max(title.len(), created_at.len()).try_into().unwrap_or(30)),
+                Constraint::Length(
+                    max(title.len(), lower_issue_info.len())
+                        .try_into()
+                        .unwrap_or(30), // default here should be fine might create a seperate
+                                        // constant
+                ),
+                Constraint::Length(2), // spacer
                 Constraint::Fill(1),
             ])
             .split(inner_area);
@@ -127,15 +138,9 @@ impl<T: ListCollection + 'static> ListView<T> {
         let title_paragraph = Paragraph::new(Span::styled(title, status_style));
         render_frame.render_widget(title_paragraph, info_chunks[0]);
 
-        /*
-        if let Some(author) = item.get_author_login() {
-            let author_paragraph = Paragraph::new(Span::styled(author, Style::default()));
-            render_frame.render_widget(author_paragraph, info_chunks[1]);
-        }*/
-
-        let time_paragraph =
-            Paragraph::new(Span::styled(created_at, Style::default().fg(Color::Gray)));
-        render_frame.render_widget(time_paragraph, info_chunks[1]);
+        let lower_issue_info_paragraph =
+            Paragraph::new(Span::styled(lower_issue_info, Style::default()));
+        render_frame.render_widget(lower_issue_info_paragraph, info_chunks[1]);
 
         let labels = item.get_labels();
         if !labels.is_empty() {
@@ -156,7 +161,7 @@ impl<T: ListCollection + 'static> ListView<T> {
                 .constraints(constraints)
                 .flex(Flex::Start)
                 .spacing(1)
-                .split(horizontal_split[1]);
+                .split(horizontal_split[2]);
 
             for (tag, chunk) in tags.iter().zip(chunks.iter()) {
                 render_frame.render_widget(tag, *chunk);
