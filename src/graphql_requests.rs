@@ -1,3 +1,16 @@
+macro_rules! impl_Into_T_for_VariableStore {
+    ($module:ident) => {
+        impl Into<$module::Variables> for VariableStore {
+            fn into(self) -> $module::Variables {
+                $module::Variables {
+                    repo_name: self.repo_name,
+                    repo_owner: self.repo_owner,
+                }
+            }
+        }
+    };
+}
+
 pub mod github {
     use std::{error::Error, sync::mpsc};
 
@@ -25,32 +38,9 @@ pub mod github {
         }
     }
 
-    impl Into<issues_query::Variables> for VariableStore {
-        fn into(self) -> issues_query::Variables {
-            issues_query::Variables {
-                repo_name: self.repo_name,
-                repo_owner: self.repo_owner,
-            }
-        }
-    }
-
-    impl Into<pull_requests_query::Variables> for VariableStore {
-        fn into(self) -> pull_requests_query::Variables {
-            pull_requests_query::Variables {
-                repo_name: self.repo_name,
-                repo_owner: self.repo_owner,
-            }
-        }
-    }
-
-    impl Into<projects_query::Variables> for VariableStore {
-        fn into(self) -> projects_query::Variables {
-            projects_query::Variables {
-                repo_name: self.repo_name,
-                repo_owner: self.repo_owner,
-            }
-        }
-    }
+    impl_Into_T_for_VariableStore!(issues_query);
+    impl_Into_T_for_VariableStore!(pull_requests_query);
+    impl_Into_T_for_VariableStore!(projects_query);
 
     pub mod types {
         use serde::{Deserialize, Serialize};
