@@ -11,6 +11,38 @@ macro_rules! impl_Into_T_for_VariableStore {
     };
 }
 
+macro_rules! impl_ListCollection_for_T {
+    ($T:ty, $item_identifier:ident, $module:ident, $type:ident) => {
+        impl ListCollection for $T {
+            fn get_items(&self) -> Vec<Box<dyn ListItem>> {
+                let mut items: Vec<Box<dyn ListItem>> = Vec::new();
+                if let Some(nodes) = &self.repository.$item_identifier.nodes {
+                    for node in nodes {
+                        if let Some(item) = node {
+                            items.push(Box::new(item.clone()));
+                        }
+                    }
+                }
+                items
+            }
+
+            fn from_repository_data(
+                data: Box<dyn std::any::Any>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                match data.downcast::<$module::$type>() {
+                    Ok(repo) => Ok(Self::new(*repo)),
+                    Err(other) => Err(format!(
+                        "Couldn't downcast to {:?}. Other value was: {:?}",
+                        std::any::type_name::<$module::$type>(),
+                        other.type_id()
+                    )
+                    .into()),
+                }
+            }
+        }
+    };
+}
+
 pub mod github {
     use std::{error::Error, sync::mpsc};
 
@@ -252,30 +284,12 @@ pub mod github {
         }
     }
 
-    impl ListCollection for IssuesCollection {
-        fn get_items(&self) -> Vec<Box<dyn ListItem>> {
-            let mut items: Vec<Box<dyn ListItem>> = Vec::new();
-            if let Some(nodes) = &self.repository.issues.nodes {
-                for node in nodes {
-                    if let Some(issue) = node {
-                        items.push(Box::new(issue.clone()));
-                    }
-                }
-            }
-            items
-        }
-
-        fn from_repository_data(
-            data: Box<dyn std::any::Any>,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
-            match data.downcast::<issues_query::IssuesQueryRepository>() {
-                Ok(issues_repo) => Ok(Self::new(*issues_repo)),
-                Err(other) => Err(
-                    format!("Couldn't downcast to issues_query::IssuesQueryRepository. Other value was: {:?}", other.type_id()).into(),
-                ),
-            }
-        }
-    }
+    impl_ListCollection_for_T!(
+        IssuesCollection,
+        issues,
+        issues_query,
+        IssuesQueryRepository
+    );
 
     impl ListItem for pull_requests_query::PullRequestsQueryRepositoryPullRequestsNodes {
         fn get_title(&self) -> &str {
@@ -324,30 +338,12 @@ pub mod github {
         }
     }
 
-    impl ListCollection for PullRequestsCollection {
-        fn get_items(&self) -> Vec<Box<dyn ListItem>> {
-            let mut items: Vec<Box<dyn ListItem>> = Vec::new();
-            if let Some(nodes) = &self.repository.pull_requests.nodes {
-                for node in nodes {
-                    if let Some(pr) = node {
-                        items.push(Box::new(pr.clone()));
-                    }
-                }
-            }
-            items
-        }
-
-        fn from_repository_data(
-            data: Box<dyn std::any::Any>,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
-            match data.downcast::<pull_requests_query::PullRequestsQueryRepository>() {
-                Ok(issues_repo) => Ok(Self::new(*issues_repo)),
-                Err(other) => Err(
-                    format!("Couldn't downcast to pull_requests_query::PullRequestsQueryRepository. Other value was: {:?}", other.type_id()).into(),
-                ),
-            }
-        }
-    }
+    impl_ListCollection_for_T!(
+        PullRequestsCollection,
+        pull_requests,
+        pull_requests_query,
+        PullRequestsQueryRepository
+    );
 
     impl ListItem for projects_query::ProjectsQueryRepositoryProjectsV2Nodes {
         fn get_title(&self) -> &str {
@@ -386,31 +382,10 @@ pub mod github {
         }
     }
 
-    impl ListCollection for ProjectsCollection {
-        fn get_items(&self) -> Vec<Box<dyn ListItem>> {
-            let mut items: Vec<Box<dyn ListItem>> = Vec::new();
-            if let Some(nodes) = &self.repository.projects_v2.nodes {
-                for node in nodes {
-                    if let Some(issue) = node {
-                        items.push(Box::new(issue.clone()));
-                    }
-                }
-            }
-            items
-        }
-
-        fn from_repository_data(
-            data: Box<dyn std::any::Any>,
-        ) -> Result<Self, Box<dyn std::error::Error>> {
-            match data.downcast::<projects_query::ProjectsQueryRepository>() {
-                Ok(projects_repo) => {
-                    log::debug!("{:?}", projects_repo);
-                    Ok(Self::new(*projects_repo))
-                },
-                Err(other) => Err(
-                    format!("Couldn't downcast to projects_query::ProjectsQueryRepository. Other value was: {:?}", other.type_id()).into(),
-                ),
-            }
-        }
-    }
+    impl_ListCollection_for_T!(
+        ProjectsCollection,
+        projects_v2,
+        projects_query,
+        ProjectsQueryRepository
+    );
 }
