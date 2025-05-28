@@ -220,10 +220,13 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
     }
 
     fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+        // try to construct the generic T from data received from the git remote
         if let Ok(collection) = T::from_repository_data(data) {
             self.collection = collection;
             self.item_amount = self.collection.get_items().len();
 
+            // we expect the git remotes to return items ordered so we can keep the selected item
+            // if there isn't less for some reason at any point
             self.selected_item = if self.selected_item < self.item_amount {
                 self.selected_item
             } else if self.item_amount > 0 {
@@ -238,6 +241,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
         false
     }
 
+    // since this panel should never close we always return false
     fn wants_to_quit(&self) -> bool {
         false
     }
