@@ -271,7 +271,7 @@ pub mod github {
             match data.downcast::<issues_query::IssuesQueryRepository>() {
                 Ok(issues_repo) => Ok(Self::new(*issues_repo)),
                 Err(other) => Err(
-                    format!("Couldn't downcast to pull_requests_query::PullRequestsQueryRepository. Other value was: {:?}", other.type_id()).into(),
+                    format!("Couldn't downcast to issues_query::IssuesQueryRepository. Other value was: {:?}", other.type_id()).into(),
                 ),
             }
         }
