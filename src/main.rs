@@ -1,6 +1,6 @@
 use std::{error::Error, sync::mpsc, thread};
 
-use lazyissues::{enable_logging, EventLoop, TerminalApp};
+use lazyissues::{logging::enable_logging, EventLoop, TerminalApp};
 use ratatui::crossterm::terminal::enable_raw_mode;
 
 fn main() -> Result<(), Box<dyn Error>> {

@@ -4,7 +4,11 @@ use std::{
     rc::Rc,
 };
 
-use ratatui::{crossterm::event::KeyEvent, layout::Rect, Frame};
+use ratatui::{
+    crossterm::event::KeyEvent,
+    layout::{Constraint, Direction, Layout, Rect},
+    Frame,
+};
 
 pub mod list_view;
 pub mod remote_explorer;
@@ -192,4 +196,29 @@ impl UiStack {
         self.panels = new_panels;
         self.panel_names = new_panel_names;
     }
+}
+
+fn create_floating_layout(width: u16, height: u16, base_chunk: Rect) -> Rect {
+    let y_offset = 50 - height / 2;
+    let x_offset = 50 - width / 2;
+
+    let vertical_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(y_offset),
+            Constraint::Percentage(height),
+            Constraint::Percentage(y_offset),
+        ])
+        .split(base_chunk);
+
+    let horizontal_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(x_offset),
+            Constraint::Percentage(width),
+            Constraint::Percentage(x_offset),
+        ])
+        .split(vertical_layout[1]);
+
+    horizontal_layout[1]
 }

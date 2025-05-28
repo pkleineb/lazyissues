@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::{
     config::{self, git::get_git_remote_url_for_name},
-    create_floating_layout,
+    ui::create_floating_layout,
     ui::PanelElement,
 };
 

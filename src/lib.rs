@@ -1,7 +1,5 @@
 use std::{
-    fs::{self, OpenOptions},
     io,
-    path::PathBuf,
     rc::Rc,
     result::Result,
     sync::mpsc,
@@ -9,14 +7,12 @@ use std::{
 };
 
 use config::Config;
-use dirs::data_local_dir;
-use env_logger::{Builder, Env};
 use ratatui::{
     crossterm::{
         event::{self, Event as CrossEvent},
         terminal::disable_raw_mode,
     },
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     prelude::CrosstermBackend,
     Frame, Terminal,
 };
@@ -24,36 +20,8 @@ use ui::{tab_menu::TabMenu, PanelElement};
 
 mod config;
 mod graphql_requests;
+pub mod logging;
 mod ui;
-
-pub const LOG_FILE_NAME: &str = "lazyissues.log";
-pub const LOG_DIR_NAME: &str = "lazyissues";
-
-pub fn enable_logging() -> Result<(), std::io::Error> {
-    let log_dir = data_local_dir()
-        .unwrap_or(PathBuf::new())
-        .join(LOG_DIR_NAME);
-
-    fs::create_dir_all(&log_dir)?;
-
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_dir.join(LOG_FILE_NAME))?;
-
-    let default_level = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "info"
-    };
-
-    Builder::from_env(Env::default().default_filter_or(default_level))
-        .target(env_logger::Target::Pipe(Box::new(file)))
-        .format_timestamp(Some(env_logger::fmt::TimestampPrecision::Seconds))
-        .init();
-
-    Ok(())
-}
 
 pub const TICK_RATE: Duration = Duration::from_millis(200);
 
@@ -229,29 +197,4 @@ impl TerminalApp {
             None => (),
         }
     }
-}
-
-fn create_floating_layout(width: u16, height: u16, base_chunk: Rect) -> Rect {
-    let y_offset = 50 - height / 2;
-    let x_offset = 50 - width / 2;
-
-    let vertical_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(y_offset),
-            Constraint::Percentage(height),
-            Constraint::Percentage(y_offset),
-        ])
-        .split(base_chunk);
-
-    let horizontal_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(x_offset),
-            Constraint::Percentage(width),
-            Constraint::Percentage(x_offset),
-        ])
-        .split(vertical_layout[1]);
-
-    horizontal_layout[1]
 }
