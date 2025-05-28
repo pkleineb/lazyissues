@@ -1,4 +1,3 @@
-use std::any::type_name;
 use std::cmp::max;
 
 use ratatui::{
