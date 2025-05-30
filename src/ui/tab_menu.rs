@@ -390,7 +390,7 @@ impl TabMenu {
 
 impl PanelElement for TabMenu {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool {
-        for panel in self.ui_stack.iter_rev() {
+        for (panel, _) in self.ui_stack.iter_rev() {
             if panel.handle_input(key_event) {
                 return true;
             }
@@ -486,8 +486,8 @@ impl PanelElement for TabMenu {
             ("", inner_inspect_chunks[STATUS_LAYOUT_POSITION]),
         ]);
 
-        for panel in self.ui_stack.iter() {
-            panel.render(render_frame, &panel_layout)
+        for (panel, name) in self.ui_stack.iter() {
+            panel.render(render_frame, panel_layout[name.as_str()]);
         }
     }
 
@@ -506,7 +506,7 @@ impl PanelElement for TabMenu {
                 RepoData::IssuesData(data) => match data.repository {
                     Some(repo_data) => {
                         let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        if let Some(panel) =
+                        if let Some((panel, _)) =
                             self.ui_stack.get_panel_mut_ref_by_name(ISSUES_VIEW_NAME)
                         {
                             panel.update(Box::new(repo_data));
@@ -525,7 +525,7 @@ impl PanelElement for TabMenu {
                 RepoData::PullRequestsData(data) => match data.repository {
                     Some(repo_data) => {
                         let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        if let Some(panel) = self
+                        if let Some((panel, _)) = self
                             .ui_stack
                             .get_panel_mut_ref_by_name(PULL_REQUESTS_VIEW_NAME)
                         {
@@ -545,7 +545,7 @@ impl PanelElement for TabMenu {
                 RepoData::ProjectsData(data) => match data.repository {
                     Some(repo_data) => {
                         let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        if let Some(panel) =
+                        if let Some((panel, _)) =
                             self.ui_stack.get_panel_mut_ref_by_name(PROJECTS_VIEW_NAME)
                         {
                             panel.update(Box::new(repo_data));
@@ -590,7 +590,7 @@ impl PanelElement for TabMenu {
 
         let mut priorities_to_quit: Vec<u8> = vec![];
 
-        for (priority, panel) in self.ui_stack.iter_with_priority() {
+        for (priority, (panel, _)) in self.ui_stack.iter_with_priority() {
             if panel.wants_to_quit() {
                 priorities_to_quit.push(*priority);
             }

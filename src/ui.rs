@@ -1,7 +1,6 @@
 use std::{
     any::Any,
     collections::{BTreeMap, HashMap},
-    rc::Rc,
 };
 
 use ratatui::{
@@ -16,7 +15,7 @@ pub mod tab_menu;
 
 pub trait PanelElement {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool;
-    fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) -> ();
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> ();
     fn tick(&mut self) -> ();
     fn update(&mut self, data: Box<dyn Any>) -> bool;
     fn wants_to_quit(&self) -> bool;
@@ -24,7 +23,7 @@ pub trait PanelElement {
 }
 
 pub struct UiStack {
-    panels: BTreeMap<u8, Box<dyn PanelElement>>,
+    panels: BTreeMap<u8, (Box<dyn PanelElement>, String)>,
     panel_names: HashMap<String, u8>,
 }
 
@@ -40,11 +39,10 @@ impl UiStack {
         &mut self,
         panel: P,
         priority: u8,
-        name: impl Into<String>,
+        name: impl Into<String> + Copy,
     ) {
-        let name = name.into();
-        self.panel_names.insert(name, priority);
-        self.panels.insert(priority, Box::new(panel));
+        self.panel_names.insert(name.into(), priority);
+        self.panels.insert(priority, (Box::new(panel), name.into()));
     }
 
     pub fn clear(&mut self) {
@@ -52,26 +50,26 @@ impl UiStack {
         self.panel_names.clear();
     }
 
-    pub fn remove_panel(&mut self, priority: u8) -> Option<Box<dyn PanelElement>> {
+    pub fn remove_panel(&mut self, priority: u8) -> Option<(Box<dyn PanelElement>, String)> {
         self.panel_names.retain(|_, &mut p| p != priority);
         self.panels.remove(&priority)
     }
 
-    pub fn remove_highest_priority_panel(&mut self) -> Option<Box<dyn PanelElement>> {
+    pub fn remove_highest_priority_panel(&mut self) -> Option<(Box<dyn PanelElement>, String)> {
         if let Some((&priority, _)) = self.panels.last_key_value() {
             return self.remove_panel(priority);
         }
         None
     }
 
-    pub fn remove_lowest_priority_panel(&mut self) -> Option<Box<dyn PanelElement>> {
+    pub fn remove_lowest_priority_panel(&mut self) -> Option<(Box<dyn PanelElement>, String)> {
         if let Some((&priority, _)) = self.panels.first_key_value() {
             return self.remove_panel(priority);
         }
         None
     }
 
-    pub fn remove_panel_by_name(&mut self, name: &str) -> Option<Box<dyn PanelElement>> {
+    pub fn remove_panel_by_name(&mut self, name: &str) -> Option<(Box<dyn PanelElement>, String)> {
         if let Some(&priority) = self.panel_names.get(name) {
             self.panel_names.remove(name);
             return self.panels.remove(&priority);
@@ -89,7 +87,7 @@ impl UiStack {
         self.panel_names.keys().collect()
     }
 
-    pub fn get_panel_ref_by_name(&self, name: &str) -> Option<&Box<dyn PanelElement>> {
+    pub fn get_panel_ref_by_name(&self, name: &str) -> Option<&(Box<dyn PanelElement>, String)> {
         if let Some(&priority) = self.panel_names.get(name) {
             return self.panels.get(&priority);
         }
@@ -97,7 +95,10 @@ impl UiStack {
         None
     }
 
-    pub fn get_panel_mut_ref_by_name(&mut self, name: &str) -> Option<&mut Box<dyn PanelElement>> {
+    pub fn get_panel_mut_ref_by_name(
+        &mut self,
+        name: &str,
+    ) -> Option<&mut (Box<dyn PanelElement>, String)> {
         if let Some(&priority) = self.panel_names.get(name) {
             return self.panels.get_mut(&priority);
         }
@@ -105,23 +106,29 @@ impl UiStack {
         None
     }
 
-    pub fn iter(&mut self) -> impl Iterator<Item = &mut Box<dyn PanelElement>> {
+    // iterates over all panels from lowest to highest priority
+    // use iter_rev if you want to iterate from highest to lowest priority
+    pub fn iter(&mut self) -> impl Iterator<Item = &mut (Box<dyn PanelElement>, String)> {
         self.panels.values_mut()
     }
 
-    pub fn iter_rev(&mut self) -> impl Iterator<Item = &mut Box<dyn PanelElement>> {
+    // iterates over all panles from highest to lowest priority
+    // use iter if you want to iterate from lowest to highest priority
+    pub fn iter_rev(&mut self) -> impl Iterator<Item = &mut (Box<dyn PanelElement>, String)> {
         self.panels.values_mut().rev()
     }
 
+    // iterate over all panels from lowest ot highest priority
+    // returns both panel and it's associated priority
     pub fn iter_with_priority(
         &mut self,
-    ) -> impl Iterator<Item = (&u8, &mut Box<dyn PanelElement>)> {
+    ) -> impl Iterator<Item = (&u8, &mut (Box<dyn PanelElement>, String))> {
         self.panels.iter_mut()
     }
 
     pub fn select_panel(&mut self, name: &str) -> bool {
         let success = match self.get_panel_mut_ref_by_name(name) {
-            Some(panel) => panel.set_focus(true),
+            Some((panel, _)) => panel.set_focus(true),
             None => {
                 log::debug!(
                     "Panel with name: {} was not in ui stack and therefore can't be selected.",
@@ -141,7 +148,7 @@ impl UiStack {
             .expect("Has to exist because otherwise we would have returned ealier.")
             != &self.get_highest_priority()
         {
-            if let Some(old_panel) = self.panels.get_mut(&self.get_highest_priority()) {
+            if let Some((old_panel, _)) = self.panels.get_mut(&self.get_highest_priority()) {
                 old_panel.set_focus(false);
             }
         }
