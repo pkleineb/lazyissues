@@ -42,8 +42,6 @@ pub trait ListCollection {
 }
 
 pub struct ListView<T: ListCollection + 'static> {
-    layout_position: usize,
-
     collection: T,
     item_amount: usize,
     selected_item: usize,
@@ -53,11 +51,9 @@ pub struct ListView<T: ListCollection + 'static> {
 }
 
 impl<T: ListCollection + 'static> ListView<T> {
-    pub fn new(layout_position: usize, collection: T, config: Config) -> Self {
+    pub fn new(collection: T, config: Config) -> Self {
         let item_amount = collection.get_items().len();
         Self {
-            layout_position,
-
             collection,
             item_amount,
             selected_item: 0,
@@ -192,9 +188,8 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 
     fn tick(&mut self) -> () {}
 
-    fn render(&mut self, render_frame: &mut Frame, layout: &std::rc::Rc<[Rect]>) -> () {
-        let render_area = layout[self.layout_position];
-        render_frame.render_widget(Clear, render_area);
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> () {
+        render_frame.render_widget(Clear, rect);
 
         let items = self.collection.get_items();
 
@@ -210,7 +205,7 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints(constraints)
-            .split(render_area);
+            .split(rect);
 
         for (i, (item, chunk)) in items.iter().zip(chunks.iter()).enumerate() {
             let is_highlighted = i == self.selected_item;
@@ -252,28 +247,25 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 }
 
 pub fn create_issues_view(
-    layout_position: usize,
     data: issues_query::IssuesQueryRepository,
     config: Config,
 ) -> impl PanelElement {
     let collection = IssuesCollection::new(data);
-    ListView::new(layout_position, collection, config)
+    ListView::new(collection, config)
 }
 
 pub fn create_pull_requests_view(
-    layout_position: usize,
     data: pull_requests_query::PullRequestsQueryRepository,
     config: Config,
 ) -> impl PanelElement {
     let collection = PullRequestsCollection::new(data);
-    ListView::new(layout_position, collection, config)
+    ListView::new(collection, config)
 }
 
 pub fn create_projects_view(
-    layout_position: usize,
     data: projects_query::ProjectsQueryRepository,
     config: Config,
 ) -> impl PanelElement {
     let collection = ProjectsCollection::new(data);
-    ListView::new(layout_position, collection, config)
+    ListView::new(collection, config)
 }

@@ -27,8 +27,6 @@ pub struct RemoteExplorer {
     items: Vec<String>,
     state: ListState,
 
-    layout_position: usize,
-
     cursor_flicker_delay: Duration,
     last_cursor_flicker: Instant,
     cursor_rendered_last_flicker: bool,
@@ -40,16 +38,11 @@ pub struct RemoteExplorer {
 }
 
 impl RemoteExplorer {
-    pub fn new(
-        layout_position: usize,
-        remote_sender: mpsc::Sender<RepoData>,
-    ) -> Result<Self, git2::Error> {
+    pub fn new(remote_sender: mpsc::Sender<RepoData>) -> Result<Self, git2::Error> {
         let mut explorer = Self {
             remote_mask: String::from(""),
             items: Vec::new(),
             state: ListState::default(),
-
-            layout_position,
 
             cursor_flicker_delay: Duration::from_millis(300),
             last_cursor_flicker: Instant::now(),
@@ -208,10 +201,10 @@ impl PanelElement for RemoteExplorer {
         true
     }
 
-    fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) {
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) {
         let remotes = self.items.clone();
 
-        let floating_area = create_floating_layout(20, 20, layout[self.layout_position]);
+        let floating_area = create_floating_layout(20, 20, rect);
         render_frame.render_widget(Clear, floating_area);
 
         let display_rect = List::new(remotes)

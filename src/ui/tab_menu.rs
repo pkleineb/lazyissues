@@ -1,4 +1,4 @@
-use std::{error::Error, path::PathBuf, rc::Rc, sync::mpsc, thread};
+use std::{collections::HashMap, error::Error, path::PathBuf, sync::mpsc, thread};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -108,8 +108,6 @@ pub enum RepoData {
 pub struct TabMenu {
     active_menu_item: MenuItem,
 
-    layout_position: usize,
-
     data_receiver: mpsc::Receiver<RepoData>,
     data_clone_sender: mpsc::Sender<RepoData>,
 
@@ -128,7 +126,7 @@ pub struct TabMenu {
 }
 
 impl TabMenu {
-    pub fn new(layout_position: usize, config: Config) -> Result<Self, git2::Error> {
+    pub fn new(config: Config) -> Result<Self, git2::Error> {
         let (data_clone_sender, data_receiver) = mpsc::channel();
 
         let state = match State::read() {
@@ -147,7 +145,6 @@ impl TabMenu {
 
         let mut tab_menu = Self {
             active_menu_item: MenuItem::Issues,
-            layout_position,
             data_receiver,
             data_clone_sender,
             data_response_data: vec![],
@@ -187,7 +184,6 @@ impl TabMenu {
     fn add_menu_panels(&mut self) {
         self.ui_stack.add_panel(
             create_issues_view(
-                ISSUES_LAYOUT_POSITION,
                 issues_query::IssuesQueryRepository {
                     issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
                 },
@@ -199,7 +195,6 @@ impl TabMenu {
 
         self.ui_stack.add_panel(
             create_pull_requests_view(
-                PULL_REQUESTS_LAYOUT_POSITION,
                 pull_requests_query::PullRequestsQueryRepository {
                     pull_requests: pull_requests_query::PullRequestsQueryRepositoryPullRequests {
                         nodes: None,
@@ -213,7 +208,6 @@ impl TabMenu {
 
         self.ui_stack.add_panel(
             create_projects_view(
-                PROJECTS_LAYOUT_POSITION,
                 projects_query::ProjectsQueryRepository {
                     projects_v2: projects_query::ProjectsQueryRepositoryProjectsV2 { nodes: None },
                 },
@@ -228,7 +222,7 @@ impl TabMenu {
 
     fn open_remote_explorer(&mut self) -> Result<(), git2::Error> {
         self.ui_stack.add_panel(
-            RemoteExplorer::new(1, self.data_clone_sender.clone())?,
+            RemoteExplorer::new(self.data_clone_sender.clone())?,
             self.ui_stack.get_highest_priority() + 1,
             REMOTE_EXPLORER_NAME,
         );
@@ -437,14 +431,13 @@ impl PanelElement for TabMenu {
         false
     }
 
-    fn render(&mut self, render_frame: &mut Frame, layout: &Rc<[Rect]>) -> () {
-        let render_area = layout[self.layout_position];
-        render_frame.render_widget(Clear, render_area);
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> () {
+        render_frame.render_widget(Clear, rect);
 
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
-            .split(render_area);
+            .split(rect);
 
         let menu_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -479,12 +472,18 @@ impl PanelElement for TabMenu {
             inner_inspect_chunks.push(block_inner);
         }
 
-        let panel_layout: Rc<[Rect]> = Rc::new([
-            inner_menu_chunks[ISSUES_LAYOUT_POSITION],        // Issues
-            inner_menu_chunks[PULL_REQUESTS_LAYOUT_POSITION], // Pull Requests
-            inner_menu_chunks[PROJECTS_LAYOUT_POSITION],      // Projects
-            inner_inspect_chunks[PREVIEW_LAYOUT_POSITION],
-            inner_inspect_chunks[STATUS_LAYOUT_POSITION],
+        let panel_layout = HashMap::from([
+            (ISSUES_VIEW_NAME, inner_menu_chunks[ISSUES_LAYOUT_POSITION]), // Issues
+            (
+                PULL_REQUESTS_VIEW_NAME,
+                inner_menu_chunks[PULL_REQUESTS_LAYOUT_POSITION],
+            ), // Pull Requests
+            (
+                PROJECTS_VIEW_NAME,
+                inner_menu_chunks[PROJECTS_LAYOUT_POSITION],
+            ), // Projects
+            ("", inner_inspect_chunks[PREVIEW_LAYOUT_POSITION]),
+            ("", inner_inspect_chunks[STATUS_LAYOUT_POSITION]),
         ]);
 
         for panel in self.ui_stack.iter() {
@@ -513,11 +512,7 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_issues_view(
-                                    ISSUES_LAYOUT_POSITION,
-                                    repo_data,
-                                    self.config.clone(),
-                                ),
+                                create_issues_view(repo_data, self.config.clone()),
                                 top_priority,
                                 ISSUES_VIEW_NAME,
                             );
@@ -537,11 +532,7 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_pull_requests_view(
-                                    PULL_REQUESTS_LAYOUT_POSITION,
-                                    repo_data,
-                                    self.config.clone(),
-                                ),
+                                create_pull_requests_view(repo_data, self.config.clone()),
                                 top_priority,
                                 PULL_REQUESTS_VIEW_NAME,
                             );
@@ -560,11 +551,7 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_projects_view(
-                                    PROJECTS_LAYOUT_POSITION,
-                                    repo_data,
-                                    self.config.clone(),
-                                ),
+                                create_projects_view(repo_data, self.config.clone()),
                                 top_priority,
                                 PROJECTS_VIEW_NAME,
                             );

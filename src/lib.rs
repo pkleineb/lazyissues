@@ -123,7 +123,7 @@ impl TerminalApp {
             return;
         }
 
-        let mut menu = match TabMenu::new(0, self.config.clone()) {
+        let mut menu = match TabMenu::new(self.config.clone()) {
             Ok(menu) => menu,
             Err(error) => {
                 log::error!("{} occured during creation of TabMenu.", error);
@@ -138,7 +138,7 @@ impl TerminalApp {
             let draw_success = self.terminal.draw(|render_frame| {
                 let layout = Self::create_base_layout(render_frame);
 
-                menu.render(render_frame, &layout)
+                menu.render(render_frame, layout[0])
             });
 
             if let Err(error) = draw_success {
