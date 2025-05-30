@@ -64,18 +64,20 @@ impl<T: ListCollection + 'static> ListView<T> {
     }
 
     fn select_next_item(&mut self) {
-        self.selected_item += 1;
+        // usize will probably not be exceeded
+        self.selected_item = self.selected_item.saturating_add(1);
         if self.selected_item >= self.item_amount {
             self.selected_item = 0;
         }
     }
 
     fn select_previous_item(&mut self) {
+        // usize will probably not be exceeded
         if self.selected_item == 0 {
             self.selected_item = self.item_amount.saturating_sub(1);
-            return;
+        } else {
+            self.selected_item -= 1;
         }
-        self.selected_item -= 1;
     }
 
     fn display_item(
