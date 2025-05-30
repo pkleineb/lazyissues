@@ -482,6 +482,7 @@ impl PanelElement for TabMenu {
                 PROJECTS_VIEW_NAME,
                 inner_menu_chunks[PROJECTS_LAYOUT_POSITION],
             ), // Projects
+            (REMOTE_EXPLORER_NAME, rect),
             ("", inner_inspect_chunks[PREVIEW_LAYOUT_POSITION]),
             ("", inner_inspect_chunks[STATUS_LAYOUT_POSITION]),
         ]);
