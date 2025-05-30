@@ -580,13 +580,7 @@ impl PanelElement for TabMenu {
         }
 
         if should_refresh_issues {
-            match self.send_request(RequestType::IssuesRequest) {
-                Err(error) => log::error!(
-                    "{} occured on issue fetch request after remote explorer closed.",
-                    error
-                ),
-                _ => (),
-            }
+            self.request_all();
         }
 
         let mut priorities_to_quit: Vec<u8> = vec![];
