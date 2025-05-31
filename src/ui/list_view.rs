@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::{cmp::max, sync::mpsc};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::PanelElement;
+use super::{tab_menu::RepoData, PanelElement};
 
 pub const ISSUES_VIEW_NAME: &str = "issues_view";
 pub const PULL_REQUESTS_VIEW_NAME: &str = "pull_requests_view";
@@ -48,10 +48,12 @@ pub struct ListView<T: ListCollection + 'static> {
     config: Config,
 
     is_focused: bool,
+
+    data_sender_cloner: mpsc::Sender<RepoData>,
 }
 
 impl<T: ListCollection + 'static> ListView<T> {
-    pub fn new(collection: T, config: Config) -> Self {
+    pub fn new(collection: T, config: Config, data_sender_cloner: mpsc::Sender<RepoData>) -> Self {
         let item_amount = collection.get_items().len();
         Self {
             collection,
@@ -60,6 +62,8 @@ impl<T: ListCollection + 'static> ListView<T> {
             config,
 
             is_focused: false,
+
+            data_sender_cloner,
         }
     }
 
@@ -251,23 +255,26 @@ impl<T: ListCollection + 'static> PanelElement for ListView<T> {
 pub fn create_issues_view(
     data: issues_query::IssuesQueryRepository,
     config: Config,
+    data_sender: mpsc::Sender<RepoData>,
 ) -> impl PanelElement {
     let collection = IssuesCollection::new(data);
-    ListView::new(collection, config)
+    ListView::new(collection, config, data_sender)
 }
 
 pub fn create_pull_requests_view(
     data: pull_requests_query::PullRequestsQueryRepository,
     config: Config,
+    data_sender: mpsc::Sender<RepoData>,
 ) -> impl PanelElement {
     let collection = PullRequestsCollection::new(data);
-    ListView::new(collection, config)
+    ListView::new(collection, config, data_sender)
 }
 
 pub fn create_projects_view(
     data: projects_query::ProjectsQueryRepository,
     config: Config,
+    data_sender: mpsc::Sender<RepoData>,
 ) -> impl PanelElement {
     let collection = ProjectsCollection::new(data);
-    ListView::new(collection, config)
+    ListView::new(collection, config, data_sender)
 }
