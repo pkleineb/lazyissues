@@ -513,7 +513,11 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_issues_view(repo_data, self.config.clone()),
+                                create_issues_view(
+                                    repo_data,
+                                    self.config.clone(),
+                                    self.data_clone_sender.clone(),
+                                ),
                                 top_priority,
                                 ISSUES_VIEW_NAME,
                             );
@@ -533,7 +537,11 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_pull_requests_view(repo_data, self.config.clone()),
+                                create_pull_requests_view(
+                                    repo_data,
+                                    self.config.clone(),
+                                    self.data_clone_sender.clone(),
+                                ),
                                 top_priority,
                                 PULL_REQUESTS_VIEW_NAME,
                             );
@@ -552,7 +560,11 @@ impl PanelElement for TabMenu {
                             panel.update(Box::new(repo_data));
                         } else {
                             self.ui_stack.add_panel(
-                                create_projects_view(repo_data, self.config.clone()),
+                                create_projects_view(
+                                    repo_data,
+                                    self.config.clone(),
+                                    self.data_clone_sender.clone(),
+                                ),
                                 top_priority,
                                 PROJECTS_VIEW_NAME,
                             );
@@ -604,7 +616,7 @@ impl PanelElement for TabMenu {
         self.quit
     }
 
-    fn set_focus(&mut self, state: bool) -> bool {
+    fn set_focus(&mut self, _state: bool) -> bool {
         false
     }
 }
