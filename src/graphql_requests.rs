@@ -388,4 +388,55 @@ pub mod github {
         projects_query,
         ProjectsQueryRepository
     );
+
+    #[derive(GraphQLQuery)]
+    #[graphql(
+        schema_path = "src/graphql/schema.github.graphql",
+        query_path = "src/graphql/queries.github.graphql",
+        response_derives = "Debug, Clone, PartialEq",
+        custom_scalars_module = "types"
+    )]
+    pub struct InspectIssuesQuery;
+
+    pub async fn perform_inspect_issues_query(
+        response_sender: mpsc::Sender<RepoData>,
+        variables: inspect_issues_query::Variables,
+        access_token: String,
+    ) -> Result<(), Box<dyn Error>> {
+        let request_body = InspectIssuesQuery::build_query(variables);
+
+        let client = reqwest::Client::builder()
+            .user_agent("LazyIssues/0.1.0")
+            .default_headers({
+                let mut headers = header::HeaderMap::new();
+                headers.insert(
+                    header::AUTHORIZATION,
+                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                );
+                headers
+            })
+            .build()?;
+
+        let response = client
+            .post(GITHUB_GRAPHQL_ENDPOINT)
+            .json(&request_body)
+            .send()
+            .await?;
+
+        let text = response.text().await?;
+        let response_body: Response<inspect_issues_query::ResponseData> =
+            serde_json::from_str(&text)?; //response.json().await?;
+        if let Some(errors) = response_body.errors {
+            log::debug!("Found errors in request: {:?}", errors);
+        }
+
+        match response_body.data {
+            Some(data) => {
+                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
+                // it doesn't seem so
+                Ok(response_sender.send(RepoData::IssuesData(data))?)
+            }
+            None => Err("No response data returned.".into()),
+        }
+    }
 }

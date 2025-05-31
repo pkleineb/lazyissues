@@ -61,3 +61,27 @@ query ProjectsQuery($repo_name: String!, $repo_owner: String!) {
     }
   }
 }
+
+query InspectIssuesQuery($repo_name: String!, $repo_owner: String!, $issue_number: Int!) {
+  repository(name: $repo_name, owner: $repo_owner) {
+    issue(number: $issue_number) {
+      author {
+        login
+      }
+      state
+      title
+      body
+      comments (first: 10) {
+        edges {
+          node {
+            author {
+              login
+            }
+            createdAt
+            body
+          }
+        }
+      }
+    }
+  }
+}
