@@ -41,7 +41,7 @@ pub trait ListCollection {
     fn get_items(&self) -> Vec<Box<dyn ListItem>>;
 }
 
-pub struct ListView<T: ListCollection + 'static> {
+pub struct ListView<T: ListCollection> {
     collection: T,
     item_amount: usize,
     selected_item: usize,
@@ -52,7 +52,7 @@ pub struct ListView<T: ListCollection + 'static> {
     data_sender_cloner: mpsc::Sender<RepoData>,
 }
 
-impl<T: ListCollection + 'static> ListView<T> {
+impl<T: ListCollection> ListView<T> {
     pub fn new(collection: T, config: Config, data_sender_cloner: mpsc::Sender<RepoData>) -> Self {
         let item_amount = collection.get_items().len();
         Self {
@@ -171,7 +171,7 @@ impl<T: ListCollection + 'static> ListView<T> {
     }
 }
 
-impl<T: ListCollection + 'static> PanelElement for ListView<T> {
+impl<T: ListCollection> PanelElement for ListView<T> {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool {
         match key_event {
             KeyEvent {
