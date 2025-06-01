@@ -119,17 +119,13 @@ pub mod github {
             .await?;
 
         let text = response.text().await?;
-        let response_body: Response<issues_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
+        let response_body: Response<issues_query::ResponseData> = serde_json::from_str(&text)?;
         if let Some(errors) = response_body.errors {
             log::debug!("Found errors in request: {:?}", errors);
         }
 
         match response_body.data {
-            Some(data) => {
-                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
-                // it doesn't seem so
-                Ok(response_sender.send(RepoData::IssuesData(data))?)
-            }
+            Some(data) => Ok(response_sender.send(RepoData::IssuesData(data))?),
             None => Err("No response data returned.".into()),
         }
     }
@@ -170,18 +166,14 @@ pub mod github {
 
         let text = response.text().await?;
         let response_body: Response<pull_requests_query::ResponseData> =
-            serde_json::from_str(&text)?; //response.json().await?;
+            serde_json::from_str(&text)?;
 
         if let Some(errors) = response_body.errors {
             log::debug!("Found errors in request: {:?}", errors);
         }
 
         match response_body.data {
-            Some(data) => {
-                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
-                // it doesn't seem so
-                Ok(response_sender.send(RepoData::PullRequestsData(data))?)
-            }
+            Some(data) => Ok(response_sender.send(RepoData::PullRequestsData(data))?),
             None => Err("No response data returned.".into()),
         }
     }
@@ -221,18 +213,14 @@ pub mod github {
             .await?;
 
         let text = response.text().await?;
-        let response_body: Response<projects_query::ResponseData> = serde_json::from_str(&text)?; //response.json().await?;
+        let response_body: Response<projects_query::ResponseData> = serde_json::from_str(&text)?;
 
         if let Some(errors) = response_body.errors {
             log::debug!("Found errors in request: {:?}", errors);
         }
 
         match response_body.data {
-            Some(data) => {
-                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
-                // it doesn't seem so
-                Ok(response_sender.send(RepoData::ProjectsData(data))?)
-            }
+            Some(data) => Ok(response_sender.send(RepoData::ProjectsData(data))?),
             None => Err("No response data returned.".into()),
         }
     }
@@ -425,15 +413,13 @@ pub mod github {
 
         let text = response.text().await?;
         let response_body: Response<inspect_issues_query::ResponseData> =
-            serde_json::from_str(&text)?; //response.json().await?;
+            serde_json::from_str(&text)?;
         if let Some(errors) = response_body.errors {
             log::debug!("Found errors in request: {:?}", errors);
         }
 
         match response_body.data {
             Some(data) => {
-                // very weird syntax to be honest I would expect Ok(Ok(())) to be returned here but
-                // it doesn't seem so
                 Ok(response_sender.send(RepoData::IssuesData(data))?)
             }
             None => Err("No response data returned.".into()),
