@@ -72,6 +72,8 @@ query IssueDetailQuery($repo_name: String!, $repo_owner: String!, $issue_number:
       state
       title
       body
+      createdAt
+      number
       comments (first: 100) {
         edges {
           node {
