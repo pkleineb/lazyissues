@@ -13,8 +13,8 @@ use tokio::runtime::Runtime;
 use crate::{
     config::{git::get_git_repo_root, Config, State},
     graphql_requests::github::{
-        issues_query, perform_issues_query, perform_projects_query, perform_pull_requests_query,
-        projects_query, pull_requests_query, VariableStore,
+        inspect_issues_query, issues_query, perform_issues_query, perform_projects_query,
+        perform_pull_requests_query, projects_query, pull_requests_query, VariableStore,
     },
     ui::PanelElement,
 };
@@ -103,6 +103,10 @@ pub enum RepoData {
     IssuesData(issues_query::ResponseData),
     PullRequestsData(pull_requests_query::ResponseData),
     ProjectsData(projects_query::ResponseData),
+
+    IssueInspectData(inspect_issues_query::ResponseData),
+    PullRequestInspectData(inspect_issues_query::ResponseData),
+    ProjectInspectData(inspect_issues_query::ResponseData),
 }
 
 pub struct TabMenu {
@@ -188,6 +192,7 @@ impl TabMenu {
                     issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
                 },
                 self.config.clone(),
+                self.data_clone_sender.clone(),
             ),
             2,
             ISSUES_VIEW_NAME,
@@ -201,6 +206,7 @@ impl TabMenu {
                     },
                 },
                 self.config.clone(),
+                self.data_clone_sender.clone(),
             ),
             0,
             PULL_REQUESTS_VIEW_NAME,
@@ -212,6 +218,7 @@ impl TabMenu {
                     projects_v2: projects_query::ProjectsQueryRepositoryProjectsV2 { nodes: None },
                 },
                 self.config.clone(),
+                self.data_clone_sender.clone(),
             ),
             1,
             PROJECTS_VIEW_NAME,
@@ -588,6 +595,9 @@ impl PanelElement for TabMenu {
 
                     should_refresh_issues = true;
                 }
+                RepoData::IssueInspectData(_data) => (),
+                RepoData::PullRequestInspectData(_data) => (),
+                RepoData::ProjectInspectData(_data) => (),
             }
         }
 

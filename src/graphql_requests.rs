@@ -419,9 +419,7 @@ pub mod github {
         }
 
         match response_body.data {
-            Some(data) => {
-                Ok(response_sender.send(RepoData::IssuesData(data))?)
-            }
+            Some(data) => Ok(response_sender.send(RepoData::IssueInspectData(data))?),
             None => Err("No response data returned.".into()),
         }
     }
