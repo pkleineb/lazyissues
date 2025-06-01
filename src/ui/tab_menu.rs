@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use crate::{
     config::{git::get_git_repo_root, Config, State},
     graphql_requests::github::{
-        inspect_issues_query, issues_query, perform_issues_query, perform_projects_query,
+        issue_detail_query, issues_query, perform_issues_query, perform_projects_query,
         perform_pull_requests_query, projects_query, pull_requests_query, VariableStore,
     },
     ui::PanelElement,
@@ -31,7 +31,7 @@ use super::{
 pub const ISSUES_LAYOUT_POSITION: usize = 0;
 pub const PULL_REQUESTS_LAYOUT_POSITION: usize = 1;
 pub const PROJECTS_LAYOUT_POSITION: usize = 2;
-pub const PREVIEW_LAYOUT_POSITION: usize = 0;
+pub const DETAIL_LAYOUT_POSITION: usize = 0;
 pub const STATUS_LAYOUT_POSITION: usize = 1;
 
 #[derive(Hash, PartialEq, Eq)]
@@ -104,9 +104,9 @@ pub enum RepoData {
     PullRequestsData(pull_requests_query::ResponseData),
     ProjectsData(projects_query::ResponseData),
 
-    IssueInspectData(inspect_issues_query::ResponseData),
-    PullRequestInspectData(inspect_issues_query::ResponseData),
-    ProjectInspectData(inspect_issues_query::ResponseData),
+    IssueInspectData(issue_detail_query::ResponseData),
+    PullRequestInspectData(issue_detail_query::ResponseData),
+    ProjectInspectData(issue_detail_query::ResponseData),
 }
 
 pub struct TabMenu {
@@ -464,19 +464,19 @@ impl PanelElement for TabMenu {
             inner_menu_chunks.push(inner_chunk);
         }
 
-        let inspect_chunks = Layout::default()
+        let detail_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
             .split(horizontal_chunks[1]);
 
-        let mut inner_inspect_chunks: Vec<Rect> = vec![];
-        for chunk in inspect_chunks.iter() {
+        let mut inner_detail_chunks: Vec<Rect> = vec![];
+        for chunk in detail_chunks.iter() {
             let block = Block::default().borders(Borders::ALL);
 
             let block_inner = block.inner(*chunk);
 
             render_frame.render_widget(block, *chunk);
-            inner_inspect_chunks.push(block_inner);
+            inner_detail_chunks.push(block_inner);
         }
 
         let panel_layout = HashMap::from([
@@ -490,8 +490,8 @@ impl PanelElement for TabMenu {
                 inner_menu_chunks[PROJECTS_LAYOUT_POSITION],
             ), // Projects
             (REMOTE_EXPLORER_NAME, rect),
-            ("", inner_inspect_chunks[PREVIEW_LAYOUT_POSITION]),
-            ("", inner_inspect_chunks[STATUS_LAYOUT_POSITION]),
+            ("", inner_detail_chunks[DETAIL_LAYOUT_POSITION]),
+            ("", inner_detail_chunks[STATUS_LAYOUT_POSITION]),
         ]);
 
         for (panel, name) in self.ui_stack.iter() {

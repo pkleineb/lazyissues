@@ -384,14 +384,14 @@ pub mod github {
         response_derives = "Debug, Clone, PartialEq",
         custom_scalars_module = "types"
     )]
-    pub struct InspectIssuesQuery;
+    pub struct IssueDetailQuery;
 
-    pub async fn perform_inspect_issues_query(
+    pub async fn perform_detail_issue_query(
         response_sender: mpsc::Sender<RepoData>,
-        variables: inspect_issues_query::Variables,
+        variables: issue_detail_query::Variables,
         access_token: String,
     ) -> Result<(), Box<dyn Error>> {
-        let request_body = InspectIssuesQuery::build_query(variables);
+        let request_body = IssueDetailQuery::build_query(variables);
 
         let client = reqwest::Client::builder()
             .user_agent("LazyIssues/0.1.0")
@@ -412,7 +412,7 @@ pub mod github {
             .await?;
 
         let text = response.text().await?;
-        let response_body: Response<inspect_issues_query::ResponseData> =
+        let response_body: Response<issue_detail_query::ResponseData> =
             serde_json::from_str(&text)?;
         if let Some(errors) = response_body.errors {
             log::debug!("Found errors in request: {:?}", errors);
