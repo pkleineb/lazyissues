@@ -66,15 +66,17 @@ query InspectIssuesQuery($repo_name: String!, $repo_owner: String!, $issue_numbe
   repository(name: $repo_name, owner: $repo_owner) {
     issue(number: $issue_number) {
       author {
+          __typename
         login
       }
       state
       title
       body
-      comments (first: 10) {
+      comments (first: 100) {
         edges {
           node {
             author {
+              __typename
               login
             }
             createdAt
