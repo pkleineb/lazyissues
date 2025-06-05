@@ -23,19 +23,31 @@ mod graphql_requests;
 pub mod logging;
 mod ui;
 
+/// Sets tick rate(minimum intervall for a full redraw)
 pub const TICK_RATE: Duration = Duration::from_millis(200);
 
+/// Eventenum to carry Input or Tick event to TerminalApp
 pub enum Event<I> {
     Input(I),
     Tick,
 }
 
+/// Listens to input from user and captures that by sending it to the main application. Over a
+/// multiproducer single consumer channel.
+/// # Example
+/// ```no_run
+/// let (sender, receiver) = mpsc::channel();
+/// let mut event_loop = EventLoop::new(sender);
+///
+/// thread::spawn(move || event_loop.run());
+/// ```
 pub struct EventLoop {
     sender: mpsc::Sender<Event<CrossEvent>>,
     last_tick: Instant,
 }
 
 impl EventLoop {
+    /// Creates a new instance of EventLoop taking a sender of Event<CrossEvent>
     pub fn new(sender: mpsc::Sender<Event<CrossEvent>>) -> Self {
         Self {
             sender,
@@ -43,6 +55,13 @@ impl EventLoop {
         }
     }
 
+    /// Runs the Eventloop locking the current thread
+    /// Therefore you should move this to a new thread:
+    /// ```no_run
+    /// let event_loop = EventLoop::new(sender);
+    ///
+    /// thread::spawn(move || event_loop.run());
+    /// ```
     pub fn run(&mut self) {
         self.last_tick = Instant::now();
 
@@ -65,12 +84,12 @@ impl EventLoop {
         }
     }
 
+    /// Reads the happened event and sends that if it is a key input through it's assigned channel.
     fn handle_event(&self) {
         match event::read() {
             Ok(CrossEvent::Key(key)) => {
-                match self.sender.send(Event::Input(CrossEvent::Key(key))) {
-                    Err(error) => println!("{error} occured during sending!"),
-                    _ => (),
+                if let Err(error) = self.sender.send(Event::Input(CrossEvent::Key(key))) {
+                    println!("{error} occured during sending!");
                 }
             }
             Ok(_) => (),
@@ -78,15 +97,27 @@ impl EventLoop {
         }
     }
 
+    /// Sends a tick through it's assigned channel.
     fn send_tick(&mut self) {
-        if self.last_tick.elapsed() >= TICK_RATE {
-            if let Ok(_) = self.sender.send(Event::Tick) {
-                self.last_tick = Instant::now();
-            }
+        if self.last_tick.elapsed() <= TICK_RATE {
+            return;
+        }
+
+        if self.sender.send(Event::Tick).is_ok() {
+            self.last_tick = Instant::now();
         }
     }
 }
 
+/// Main application rendering ui and pushing input events to it's components.
+/// ```no_run
+/// let (sender, receiver) mpsc::channel();
+///
+/// let app = TerminalApp::new(receiver);
+/// if app.is_ok() {
+///     app.run();
+/// }
+/// ```
 pub struct TerminalApp {
     input_receiver: mpsc::Receiver<Event<CrossEvent>>,
 
@@ -95,6 +126,8 @@ pub struct TerminalApp {
 }
 
 impl TerminalApp {
+    /// Creates a new Instance of TerminalApp taking a receiver of Event<CrossEvent>.
+    /// Fetching the Terminal may error so we return a result.
     pub fn new(input_receiver: mpsc::Receiver<Event<CrossEvent>>) -> Result<Self, std::io::Error> {
         let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
@@ -115,7 +148,8 @@ impl TerminalApp {
         })
     }
 
-    // main render loop
+    /// Starts the main rendering loop displaying all widgets on the terminal.
+    /// This runs until the client wants to exit.
     pub fn run(&mut self) {
         // clear terminal if this doesn't succed we can't really draw therefore we quit
         if let Err(error) = self.terminal.clear() {
@@ -150,12 +184,11 @@ impl TerminalApp {
             // we break the loop
             match self.input_receiver.recv() {
                 Ok(event) => match event {
-                    Event::Input(event) => match event {
-                        CrossEvent::Key(key) => {
+                    Event::Input(event) => {
+                        if let CrossEvent::Key(key) = event {
                             menu.handle_input(key);
                         }
-                        _ => (),
-                    },
+                    }
                     Event::Tick => {}
                 },
                 Err(error) => {
@@ -173,6 +206,7 @@ impl TerminalApp {
         }
     }
 
+    /// creates the base rendering layout
     fn create_base_layout(render_frame: &mut Frame) -> Rc<[Rect]> {
         let size = render_frame.area();
         Layout::default()
@@ -181,6 +215,7 @@ impl TerminalApp {
             .split(size)
     }
 
+    /// cleans up terminal after finish executing
     fn clean_up_terminal(&mut self, message: Option<String>) {
         if let Err(error) = self.terminal.clear() {
             log::error!("{error} occured during terminal clearing");
@@ -192,9 +227,8 @@ impl TerminalApp {
             log::error!("{error} occured when trying to show cursor!");
         }
 
-        match message {
-            Some(message) => log::error!("{message}"),
-            None => (),
+        if message.is_some() {
+            log::error!("{}", message.unwrap());
         }
     }
 }
