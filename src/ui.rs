@@ -176,9 +176,11 @@ impl UiStack {
                 self.panel_names.insert(name.to_string(), new_priority);
                 self.panels.insert(new_priority, panel);
             }
-        } else {
-            log::debug!("Panel with name: {} was not in ui stack and can therefore not have it's priority changed.", name)
+
+            return;
         }
+
+        log::debug!("Panel with name: {name} was not in ui stack and can therefore not have it's priority changed.")
     }
 
     // this works but doesn't feel very well coded so I am not sure if I want to keep this
