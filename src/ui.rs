@@ -165,6 +165,13 @@ impl UiStack {
                 return;
             }
 
+            if self.panels.contains_key(&new_priority) {
+                log::debug!(
+                    "Panel with name: {name} was set to the same priority as another panel."
+                );
+                return;
+            }
+
             if let Some(panel) = self.panels.remove(&priority) {
                 self.panel_names.insert(name.to_string(), new_priority);
                 self.panels.insert(new_priority, panel);
