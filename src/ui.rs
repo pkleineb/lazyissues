@@ -15,8 +15,8 @@ pub mod tab_menu;
 
 pub trait PanelElement {
     fn handle_input(&mut self, key_event: KeyEvent) -> bool;
-    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> ();
-    fn tick(&mut self) -> ();
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect);
+    fn tick(&mut self);
     fn update(&mut self, data: Box<dyn Any>) -> bool;
     fn wants_to_quit(&self) -> bool;
     fn set_focus(&mut self, state: bool) -> bool;
