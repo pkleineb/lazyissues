@@ -14,6 +14,7 @@ use env_logger::{Builder, Env};
 pub const LOG_FILE_NAME: &str = "lazyissues.log";
 pub const LOG_DIR_NAME: &str = "lazyissues";
 
+/// call before main logic to start logging
 pub fn enable_logging() -> Result<(), std::io::Error> {
     let log_dir = data_local_dir()
         .unwrap_or(PathBuf::new())
