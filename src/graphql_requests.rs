@@ -1,3 +1,5 @@
+/// macro for implementing into type <T> for a the VariableStore struct, for passing Variables to
+/// the graphql queries
 macro_rules! impl_Into_T_for_VariableStore {
     ($module:ident) => {
         impl Into<$module::Variables> for VariableStore {
@@ -11,9 +13,13 @@ macro_rules! impl_Into_T_for_VariableStore {
     };
 }
 
+/// implements ListCollection for a type <T>, for accessing each individual, issue, pull request or
+/// project
 macro_rules! impl_ListCollection_for_T {
     ($T:ty, $item_identifier:ident, $module:ident, $type:ident) => {
         impl ListCollection for $T {
+            /// returns all items(issues, pull requests or projects) that are in the
+            /// `ListCollection`
             fn get_items(&self) -> Vec<Box<dyn ListItem>> {
                 let mut items: Vec<Box<dyn ListItem>> = Vec::new();
                 if let Some(nodes) = &self.repository.$item_identifier.nodes {
@@ -26,6 +32,8 @@ macro_rules! impl_ListCollection_for_T {
                 items
             }
 
+            /// tries to downcast some data into the correct Type <T> this is implemented for to
+            /// build a new `ListCollection`
             fn from_repository_data(
                 data: Box<dyn std::any::Any>,
             ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -56,12 +64,14 @@ pub mod github {
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
 
+    /// `VariablesStore` stores all relevant variables for a graphql query
     pub struct VariableStore {
         repo_name: String,
         repo_owner: String,
     }
 
     impl VariableStore {
+        /// creates a new variables store
         pub fn new(repo_name: String, repo_owner: String) -> Self {
             Self {
                 repo_name,
@@ -74,6 +84,8 @@ pub mod github {
     impl_Into_T_for_VariableStore!(pull_requests_query);
     impl_Into_T_for_VariableStore!(projects_query);
 
+    // generic type declaration for graphql requests so that graphql_client does know what type to
+    // downcast how and to what
     pub mod types {
         use serde::{Deserialize, Serialize};
 
@@ -84,6 +96,8 @@ pub mod github {
         pub struct DateTime(pub String);
     }
 
+    /// `IssuesQuery` represents the github issues query for quering all (first 100) issues in a
+    /// github repository
     #[derive(GraphQLQuery)]
     #[graphql(
         schema_path = "src/graphql/schema.github.graphql",
@@ -93,6 +107,7 @@ pub mod github {
     )]
     pub struct IssuesQuery;
 
+    /// performs the issue query sending it to the server
     pub async fn perform_issues_query(
         response_sender: mpsc::Sender<RepoData>,
         variables: issues_query::Variables,
@@ -130,6 +145,8 @@ pub mod github {
         }
     }
 
+    /// `PullRequestsQuery` represents the github pull requests query for quering all (first 100)
+    /// pull requests on a github repository
     #[derive(GraphQLQuery)]
     #[graphql(
         schema_path = "src/graphql/schema.github.graphql",
@@ -139,6 +156,7 @@ pub mod github {
     )]
     pub struct PullRequestsQuery;
 
+    /// performs the pull request query sending it to the server
     pub async fn perform_pull_requests_query(
         response_sender: mpsc::Sender<RepoData>,
         variables: pull_requests_query::Variables,
@@ -178,6 +196,8 @@ pub mod github {
         }
     }
 
+    /// `ProjectsQuery` represents the github projects query for viewing all (first 100) projects a
+    /// user on a specific github repository has
     #[derive(GraphQLQuery)]
     #[graphql(
         schema_path = "src/graphql/schema.github.graphql",
@@ -187,6 +207,7 @@ pub mod github {
     )]
     pub struct ProjectsQuery;
 
+    /// performs the projects query sending it to the server
     pub async fn perform_projects_query(
         response_sender: mpsc::Sender<RepoData>,
         variables: projects_query::Variables,
@@ -226,26 +247,32 @@ pub mod github {
     }
 
     impl ListItem for issues_query::IssuesQueryRepositoryIssuesNodes {
+        /// gets the title of an issue of a repository
         fn get_title(&self) -> &str {
             &self.title
         }
 
+        /// gets the number of an issue of a repository
         fn get_number(&self) -> i64 {
             self.number
         }
 
+        /// checks wether or not the issue is closed in a repository
         fn is_closed(&self) -> bool {
             self.closed
         }
 
+        /// gets the login(username) of the author of that issue
         fn get_author_login(&self) -> Option<&str> {
             self.author.as_ref().map(|author| &author.login[..])
         }
 
+        /// gets the timestamp when the issue got created
         fn get_created_at(&self) -> &str {
             &self.created_at.0
         }
 
+        /// gets all labels of an issue
         fn get_labels(&self) -> Vec<String> {
             let mut result = Vec::new();
             if let Some(labels) = &self.labels {
@@ -261,12 +288,14 @@ pub mod github {
         }
     }
 
+    /// `IssuesCollection` represents all issues that the `IssuesQuery` returned
     #[derive(Debug)]
     pub struct IssuesCollection {
         repository: issues_query::IssuesQueryRepository,
     }
 
     impl IssuesCollection {
+        /// creates a new instance of the `IssuesCollection`
         pub fn new(repository: issues_query::IssuesQueryRepository) -> Self {
             Self { repository }
         }
@@ -280,26 +309,32 @@ pub mod github {
     );
 
     impl ListItem for pull_requests_query::PullRequestsQueryRepositoryPullRequestsNodes {
+        /// gets the title of the pull request
         fn get_title(&self) -> &str {
             &self.title
         }
 
+        /// gets the number of the pull request
         fn get_number(&self) -> i64 {
             self.number
         }
 
+        /// checks wether or not the pull request has been closed
         fn is_closed(&self) -> bool {
             self.closed
         }
 
+        /// gets the login(username) of the author for that pull request
         fn get_author_login(&self) -> Option<&str> {
             self.author.as_ref().map(|author| &author.login[..])
         }
 
+        /// gets the timestamp when the pull request was created
         fn get_created_at(&self) -> &str {
             &self.created_at.0
         }
 
+        /// gets all asigned labels for that pull request
         fn get_labels(&self) -> Vec<String> {
             let mut result = Vec::new();
             if let Some(labels) = &self.labels {
@@ -315,12 +350,14 @@ pub mod github {
         }
     }
 
+    /// `PullRequestsCollection` represents all pull requests that the `PullRequestsQuery` returned
     #[derive(Debug)]
     pub struct PullRequestsCollection {
         repository: pull_requests_query::PullRequestsQueryRepository,
     }
 
     impl PullRequestsCollection {
+        /// creates a new instance of `PullrequestsCollection`
         pub fn new(repository: pull_requests_query::PullRequestsQueryRepository) -> Self {
             Self { repository }
         }
@@ -334,37 +371,46 @@ pub mod github {
     );
 
     impl ListItem for projects_query::ProjectsQueryRepositoryProjectsV2Nodes {
+        /// gets the title of the project
         fn get_title(&self) -> &str {
             &self.title
         }
 
+        /// gets the number of the project
         fn get_number(&self) -> i64 {
             self.number
         }
 
+        /// checks wether or not the project is closed
         fn is_closed(&self) -> bool {
             self.closed
         }
 
+        /// gets the login(username) of the author of the project
         fn get_author_login(&self) -> Option<&str> {
             self.creator.as_ref().map(|author| &author.login[..])
         }
 
+        /// gets the timestamp when the project got created
         fn get_created_at(&self) -> &str {
             &self.created_at.0
         }
 
+        /// gets the labels of the project. Since projects don't have labels we return an empty
+        /// vector
         fn get_labels(&self) -> Vec<String> {
             vec![]
         }
     }
 
+    /// `ProjectsCollection` represents all projects that the `ProjectsQuery` returned
     #[derive(Debug)]
     pub struct ProjectsCollection {
         repository: projects_query::ProjectsQueryRepository,
     }
 
     impl ProjectsCollection {
+        /// creast a new instance of `ProjectsCollection`
         pub fn new(repository: projects_query::ProjectsQueryRepository) -> Self {
             Self { repository }
         }
@@ -377,6 +423,7 @@ pub mod github {
         ProjectsQueryRepository
     );
 
+    /// `IssueDetailQuery` represents the detailed query about an issue like comments
     #[derive(GraphQLQuery)]
     #[graphql(
         schema_path = "src/graphql/schema.github.graphql",
@@ -386,6 +433,7 @@ pub mod github {
     )]
     pub struct IssueDetailQuery;
 
+    /// performs the `IssueDetailQuery` sending it to the server
     pub async fn perform_detail_issue_query(
         response_sender: mpsc::Sender<RepoData>,
         variables: issue_detail_query::Variables,
