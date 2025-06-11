@@ -13,6 +13,7 @@ use std::{env, fs};
 
 pub mod git;
 
+/// gets a kdl nodes value as a string or emits an error passing through code using the ?-operator
 macro_rules! get_kdl_string_value_or_error {
     ($node:expr) => {
         $node
@@ -27,6 +28,8 @@ macro_rules! get_kdl_string_value_or_error {
     };
 }
 
+/// gets the first entry of a node as a string
+/// :return Option<String>
 macro_rules! get_first_entry_as_string {
     ($node:expr) => {
         $node
@@ -36,6 +39,7 @@ macro_rules! get_first_entry_as_string {
     };
 }
 
+/// gets all entries of a node as a std::vec<String>
 macro_rules! get_entries_as_string_vec {
     ($node:expr) => {
         $node
@@ -46,6 +50,8 @@ macro_rules! get_entries_as_string_vec {
     };
 }
 
+/// gets the first entry of a node as a PathBuf
+/// :return Option<PathBuf>
 macro_rules! get_first_entry_as_PathBuf {
     ($node:expr) => {
         $node.entries().first().map_or(None, |entry| {
@@ -57,6 +63,8 @@ macro_rules! get_first_entry_as_PathBuf {
     };
 }
 
+/// gets the first entry of a node as an int
+/// :return Option<int>
 macro_rules! get_first_entry_as_int {
     ($node:expr) => {
         $node
@@ -66,6 +74,8 @@ macro_rules! get_first_entry_as_int {
     };
 }
 
+/// reads the token file of a specific backend(github, gitlab, gitea)
+/// :return Result<String, IoError>
 macro_rules! read_token_file_backend {
     ($backend:expr) => {
         if let Some(path) = $backend {
@@ -79,6 +89,8 @@ macro_rules! read_token_file_backend {
     };
 }
 
+/// unwraps an error value, logging on error and returning Some on Ok
+/// :return Option<type <T>>
 macro_rules! report_error_to_log {
     ($expr:expr) => {
         match $expr {
@@ -96,6 +108,7 @@ pub const CONFIG_DIR_NAME: &str = "lazyissues";
 
 pub const STATE_NAME: &str = "state.kdl";
 
+/// gets the lazyissues config filepath
 pub fn get_config_file() -> PathBuf {
     config_local_dir()
         .unwrap_or(PathBuf::default())
@@ -104,6 +117,7 @@ pub fn get_config_file() -> PathBuf {
         .to_owned()
 }
 
+/// gets the lazyissues state filepath
 pub fn get_state_file() -> PathBuf {
     config_local_dir()
         .unwrap_or(PathBuf::default())
@@ -112,6 +126,7 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
+/// `Config` struct for storing user set config for lazyissues
 #[derive(Debug, Clone)]
 pub struct Config {
     pub github_token: Option<String>,
@@ -128,6 +143,7 @@ pub struct Config {
 }
 
 impl Default for Config {
+    /// creates a new instance of `Config` using default values
     fn default() -> Self {
         Self {
             github_token: None,
@@ -156,11 +172,13 @@ impl Default for Config {
 }
 
 impl Config {
+    /// reads in config file creating config based on this file
     pub fn from_config_file() -> Result<Self, IoError> {
         let kdl_str = fs::read_to_string(get_config_file())?;
         Self::from_kdl_str(&kdl_str)
     }
 
+    /// creates config based on a KdlDocument parsed to a string
     fn from_kdl_str(kdl_str: &str) -> Result<Self, IoError> {
         let kdl_config = KdlDocument::parse(kdl_str).map_err(|e| {
             IoError::new(
@@ -186,6 +204,7 @@ impl Config {
         Ok(config)
     }
 
+    /// applies an option to the config modifying it inplace
     fn apply_option(
         &mut self,
         parent_node: &KdlDocument,
@@ -234,6 +253,7 @@ impl Config {
         Ok(())
     }
 
+    /// reads a tag node determining the associated color and it's name
     fn read_tag_node(&mut self, tag_node: &KdlNode) {
         for child in tag_node.iter_children() {
             self.tag_styles.insert(
@@ -253,10 +273,12 @@ impl Config {
         }
     }
 
+    /// returns a color for a given tag. If the tag is not found return White
     pub fn get_tag_color(&self, tag: &str) -> Color {
         self.tag_styles.get(tag).copied().unwrap_or(Color::White)
     }
 
+    /// sets the access tokens for the different backends
     fn set_access_tokens(&mut self) -> Result<(), IoError> {
         self.github_token = report_error_to_log!(self.get_access_token("github"));
         self.gitlab_token = report_error_to_log!(self.get_access_token("gitlab"));
@@ -264,6 +286,8 @@ impl Config {
         Ok(())
     }
 
+    /// tries to parse access tokens for the git backends so that we can use this to authenticate
+    /// with the git backend in our request
     fn get_access_token(&self, token_type: &str) -> Result<String, IoError> {
         if let Ok(token) = env::var(format!("{}_TOKEN", token_type.to_uppercase())) {
             return Ok(token);
@@ -291,6 +315,7 @@ impl Config {
         }
     }
 
+    /// tries to get git credentials stored in git locally
     fn get_git_credential(&self) -> Result<String, Box<dyn Error>> {
         let mut child = Command::new("git").args(["credential", "fill"]).spawn()?;
 
@@ -312,6 +337,7 @@ impl Config {
         return Err("No GitHub token found in git credentials".into());
     }
 
+    /// waits for credential output trying `self.credential_attempts` times
     fn wait_for_credential_output(&self, mut child: Child) -> Result<Output, Box<dyn Error>> {
         let mut exit_status = child.try_wait();
         for _ in 0..self.credential_attempts {
@@ -331,12 +357,15 @@ impl Config {
     }
 }
 
+/// `State` struct storing application state like currently prefered repository endpoint for a
+/// specific repository
 pub struct State {
     //               <local repo path, active remote>
     repository_state: HashMap<PathBuf, String>,
 }
 
 impl Default for State {
+    /// creates a new instance of `State` using default values
     fn default() -> Self {
         Self {
             repository_state: HashMap::new(),
@@ -345,11 +374,13 @@ impl Default for State {
 }
 
 impl State {
+    /// reads in the current state of lazyissues
     pub fn read() -> std::io::Result<Self> {
         let kdl_str = fs::read_to_string(get_state_file())?;
         Self::from_kdl_str(&kdl_str)
     }
 
+    /// creates a new `State` object by reading a KdlDocument's parsed string
     fn from_kdl_str(kdl_str: &str) -> std::io::Result<Self> {
         let kdl_state = KdlDocument::parse(kdl_str).map_err(|e| {
             IoError::new(
@@ -370,6 +401,7 @@ impl State {
         Ok(state)
     }
 
+    /// applies an option found in the state file to itself. Modifying itself inplace
     fn apply_option(
         &mut self,
         parent_node: &KdlDocument,
@@ -395,6 +427,7 @@ impl State {
         Ok(())
     }
 
+    /// reads repositories found in state file
     fn read_repositories(&mut self, repositories_node: &KdlNode) {
         for child in repositories_node.iter_children() {
             match child.name().value() {
@@ -416,10 +449,12 @@ impl State {
         }
     }
 
+    /// returns the saved repository data for a given repository root
     pub fn get_repository_data(&self, repo_root: &PathBuf) -> Option<String> {
         self.repository_state.get(repo_root).cloned()
     }
 
+    /// sets repository state for a repository
     pub fn set_repository_data(
         &mut self,
         repo_root: PathBuf,
@@ -431,6 +466,7 @@ impl State {
         Ok(())
     }
 
+    /// writes the State set for a repository into the state file
     fn write_to_kdl(&self) -> std::io::Result<()> {
         let mut kdl_state = KdlDocument::new();
 
