@@ -156,10 +156,6 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn from_config_file() -> Result<Self, IoError> {
         let kdl_str = fs::read_to_string(get_config_file())?;
         Self::from_kdl_str(&kdl_str)

@@ -137,7 +137,7 @@ impl TerminalApp {
             Ok(config) => config,
             Err(error) => {
                 log::error!("{}", error);
-                Config::new()
+                Config::default()
             }
         };
 
