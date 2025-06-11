@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use git2::Repository;
 
+/// gets all remotes in the currently active git repo
 pub fn get_remote_names() -> Result<Vec<String>, git2::Error> {
     let repo = Repository::open(".")?;
     let remotes = repo.remotes()?;
@@ -14,6 +15,7 @@ pub fn get_remote_names() -> Result<Vec<String>, git2::Error> {
     Ok(remote_names)
 }
 
+/// gets all remote names and urls in the currently active git repo as a tuple
 pub fn get_remote_names_and_urls() -> Result<Vec<(String, String)>, git2::Error> {
     let repo = Repository::open(".")?;
     let remotes = repo.remotes()?;
@@ -32,6 +34,7 @@ pub fn get_remote_names_and_urls() -> Result<Vec<(String, String)>, git2::Error>
     Ok(remote_names_urls)
 }
 
+/// get all remote urls in a the currently active git repo
 pub fn get_remote_urls() -> Result<Vec<String>, git2::Error> {
     let repo = Repository::open(".")?;
     let remotes = repo.remotes()?;
@@ -50,6 +53,7 @@ pub fn get_remote_urls() -> Result<Vec<String>, git2::Error> {
     Ok(remote_urls)
 }
 
+/// gets the current preferred remote of the currently active git repo
 pub fn get_active_remote() -> Result<String, git2::Error> {
     let repo = Repository::open(".")?;
 
@@ -87,6 +91,7 @@ pub fn get_active_remote() -> Result<String, git2::Error> {
     Err(git2::Error::from_str("No remote found"))
 }
 
+/// gets the currently active's git repo root
 pub fn get_git_repo_root() -> Result<PathBuf, git2::Error> {
     // Open the repository at the current directory
     let repo = Repository::open(".")?;
@@ -97,6 +102,7 @@ pub fn get_git_repo_root() -> Result<PathBuf, git2::Error> {
         .ok_or_else(|| git2::Error::from_str("Could not find repository root"))
 }
 
+/// get the git remote url by the name of that remote
 pub fn get_git_remote_url_for_name(name: &str) -> Result<String, git2::Error> {
     let repo = Repository::open(".")?;
 
