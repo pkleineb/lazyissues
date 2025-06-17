@@ -28,12 +28,18 @@ use super::{
     UiStack,
 };
 
+/// sets the position of the issues list view widget (position in the layout tuple)
 pub const ISSUES_LAYOUT_POSITION: usize = 0;
+/// sets the position of the pull requests list view widget (position in the layout tuple)
 pub const PULL_REQUESTS_LAYOUT_POSITION: usize = 1;
+/// sets the position of the projects list view widget (position in the layout tuple)
 pub const PROJECTS_LAYOUT_POSITION: usize = 2;
+/// sets the position of the detail widget (position in the layout tuple)
 pub const DETAIL_LAYOUT_POSITION: usize = 0;
+/// sets the position of the status widget (position in the layout tuple)
 pub const STATUS_LAYOUT_POSITION: usize = 1;
 
+/// enum used to select the currently active menuitem so we can highlight it
 #[derive(Hash, PartialEq, Eq)]
 pub enum MenuItem {
     Issues,
@@ -42,6 +48,12 @@ pub enum MenuItem {
 }
 
 impl From<&MenuItem> for usize {
+    /// converts `MenuItem` into usize
+    /// ```no_run
+    /// MenuItem::Issues => 0,
+    /// MenuItem::PullRequests => 1,
+    /// MenuItem::Projects => 2,
+    /// ```
     fn from(input: &MenuItem) -> usize {
         match input {
             MenuItem::Issues => 0,
@@ -52,6 +64,12 @@ impl From<&MenuItem> for usize {
 }
 
 impl From<&MenuItem> for String {
+    /// converts `MenuItem` into String
+    /// ```no_run
+    /// MenuItem::Issues => "Issues",
+    /// MenuItem::PullRequests => "Pull requests",
+    /// MenuItem::Projects => "Projects",
+    /// ```
     fn from(input: &MenuItem) -> String {
         match input {
             MenuItem::Issues => "Issues".to_string(),
@@ -62,15 +80,24 @@ impl From<&MenuItem> for String {
 }
 
 impl MenuItem {
+    /// returns the main menu points as `&str` in an array
+    /// ```no_run
+    /// ["Issues", "Pull requests", "Projects"]
+    /// ```
     fn to_main_menu_points_str() -> [&'static str; 3] {
         return ["Issues", "Pull requests", "Projects"];
     }
 
+    /// returns the main menu points as `MenuItem` in an array
+    /// ```no_run
+    /// [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects]
+    /// ```
     fn to_main_menu_points() -> [MenuItem; 3] {
         return [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects];
     }
 }
 
+/// enum for the request we want to send to server
 #[derive(Debug, Clone, Copy)]
 pub enum RequestType {
     IssuesRequest,
@@ -79,6 +106,7 @@ pub enum RequestType {
 }
 
 impl RequestType {
+    /// returns an iterator over all request types
     fn iter() -> impl Iterator<Item = &'static RequestType> {
         [
             RequestType::IssuesRequest,
@@ -88,6 +116,7 @@ impl RequestType {
         .iter()
     }
 
+    /// converts a request type to str
     fn to_str(&self) -> &'static str {
         match self {
             RequestType::IssuesRequest => "IssuesRequest",
@@ -97,6 +126,7 @@ impl RequestType {
     }
 }
 
+/// enum for data that can be reported about a repo
 pub enum RepoData {
     ActiveRemoteData(String),
 
@@ -109,6 +139,7 @@ pub enum RepoData {
     ProjectInspectData(issue_detail_query::ResponseData),
 }
 
+/// main widget which manages all other widgets
 pub struct TabMenu {
     active_menu_item: MenuItem,
 
@@ -130,6 +161,8 @@ pub struct TabMenu {
 }
 
 impl TabMenu {
+    /// creates a new `TabMenu`.
+    /// This might Error when it can't readout the git repo one is currently in
     pub fn new(config: Config) -> Result<Self, git2::Error> {
         let (data_clone_sender, data_receiver) = mpsc::channel();
 
@@ -171,6 +204,7 @@ impl TabMenu {
         Ok(tab_menu)
     }
 
+    /// fetches all requests to populate the list_view widgets
     fn request_all(&self) {
         for request_type in RequestType::iter() {
             let request_type_string = request_type.to_str();
@@ -185,6 +219,7 @@ impl TabMenu {
         }
     }
 
+    /// adds all widgets to it's inner `UiStack`
     fn add_menu_panels(&mut self) {
         self.ui_stack.add_panel(
             create_issues_view(
@@ -227,6 +262,7 @@ impl TabMenu {
         self.ui_stack.select_panel(ISSUES_VIEW_NAME);
     }
 
+    /// adds the remote explorer for selecting remotes to it's panels and selecting it
     fn open_remote_explorer(&mut self) -> Result<(), git2::Error> {
         self.ui_stack.add_panel(
             RemoteExplorer::new(self.data_clone_sender.clone())?,
@@ -237,6 +273,7 @@ impl TabMenu {
         Ok(())
     }
 
+    /// displays a single `MenuItem` and returning the inner space where we can draw detail
     fn display_menu_item(
         menu_item: &MenuItem,
         render_frame: &mut Frame,
@@ -261,6 +298,7 @@ impl TabMenu {
         block_inner
     }
 
+    /// sends a request of a certain type to the server
     fn send_request(&self, request_type: RequestType) -> Result<(), Box<dyn Error>> {
         if self.config.github_token.is_none() {
             log::info!("Github token not set.");
@@ -342,6 +380,7 @@ impl TabMenu {
         Ok(())
     }
 
+    /// selects the next `MenuItem` in rotation
     fn select_next_menu_item(&mut self) {
         match self.active_menu_item {
             MenuItem::Issues => self.select_pull_requests_view(),
@@ -350,6 +389,7 @@ impl TabMenu {
         }
     }
 
+    /// selects the previous `MenuItem` in rotation
     fn select_previous_menu_item(&mut self) {
         match self.active_menu_item {
             MenuItem::Issues => self.select_projects_view(),
@@ -358,6 +398,7 @@ impl TabMenu {
         }
     }
 
+    /// selects the issues view, refetching the data for it
     fn select_issues_view(&mut self) {
         self.active_menu_item = MenuItem::Issues;
         self.ui_stack.select_panel(ISSUES_VIEW_NAME);
@@ -370,6 +411,7 @@ impl TabMenu {
         }
     }
 
+    /// selects the pull requests view, refetching the data for it
     fn select_pull_requests_view(&mut self) {
         self.active_menu_item = MenuItem::PullRequests;
         self.ui_stack.select_panel(PULL_REQUESTS_VIEW_NAME);
@@ -382,6 +424,7 @@ impl TabMenu {
         }
     }
 
+    /// selects the projects view, refetching the data for it
     fn select_projects_view(&mut self) {
         self.active_menu_item = MenuItem::Projects;
         self.ui_stack.select_panel(PROJECTS_VIEW_NAME);
