@@ -20,8 +20,10 @@ use crate::{
 
 use super::tab_menu::RepoData;
 
+/// remote explorer name for `UiStack`
 pub const REMOTE_EXPLORER_NAME: &str = "remote_explorer";
 
+/// Widget for selecting the remote we want to fetch data from in a repo
 pub struct RemoteExplorer {
     remote_mask: String,
     items: Vec<String>,
@@ -38,6 +40,8 @@ pub struct RemoteExplorer {
 }
 
 impl RemoteExplorer {
+    /// creates a new instance of `RemoteExplorer`.
+    /// This might error if we can't readout the git repo
     pub fn new(remote_sender: mpsc::Sender<RepoData>) -> Result<Self, git2::Error> {
         let mut explorer = Self {
             remote_mask: String::from(""),
@@ -57,6 +61,7 @@ impl RemoteExplorer {
         Ok(explorer)
     }
 
+    /// sets the items for the `RemoteExplorer` (name of remotes)
     fn update_items(&mut self) -> Result<(), git2::Error> {
         self.items = config::git::get_remote_names()?
             .into_iter()
@@ -68,6 +73,7 @@ impl RemoteExplorer {
         Ok(())
     }
 
+    /// selects the next entry from all items of the `RemoteExplorer`, wrapping on the edges
     fn next_entry(&mut self) {
         let entry_index = match self.state.selected() {
             Some(index) => {
@@ -82,6 +88,7 @@ impl RemoteExplorer {
         self.state.select(Some(entry_index));
     }
 
+    /// selects the previous entry from all items of the `RemoteExplorer`, wrapping on the edges
     fn previous_entry(&mut self) {
         let entry_index = match self.state.selected() {
             Some(index) => {
@@ -96,6 +103,7 @@ impl RemoteExplorer {
         self.state.select(Some(entry_index));
     }
 
+    /// filters entry if it contains the internal mask
     fn compare_entry_to_mask(&self, entry: &str) -> bool {
         if entry.contains(&self.remote_mask) {
             return true;
@@ -104,12 +112,14 @@ impl RemoteExplorer {
         false
     }
 
+    /// adds a character to the internal mask
     fn add_to_mask(&mut self, char: char) -> Result<(), Box<dyn std::error::Error>> {
         self.remote_mask += &char.to_string();
         self.update_items()?;
         Ok(())
     }
 
+    /// removes the last character from the internal mask
     fn remove_from_mask(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if self.remote_mask.len() == 0 {
             return Ok(());
@@ -121,10 +131,12 @@ impl RemoteExplorer {
         Ok(())
     }
 
+    /// clears the internal mask
     fn clear_mask(&mut self) {
         self.remote_mask.clear();
     }
 
+    /// returns the character that should be rendered at the place of the cursor
     fn render_cursor(&mut self) -> &str {
         let should_switch_mode =
             Instant::now() - self.last_cursor_flicker > self.cursor_flicker_delay;
@@ -141,6 +153,7 @@ impl RemoteExplorer {
         }
     }
 
+    /// selects a remote sending that selection through the provided channel
     fn select_remote(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         match self.state.selected() {
             Some(index) => match self.items.get(index) {
