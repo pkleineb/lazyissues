@@ -109,7 +109,7 @@ impl MenuItem {
     /// ["Issues", "Pull requests", "Projects"]
     /// ```
     fn to_main_menu_points_str() -> [&'static str; 3] {
-        return ["Issues", "Pull requests", "Projects"];
+        ["Issues", "Pull requests", "Projects"]
     }
 
     /// returns the main menu points as `MenuItem` in an array
@@ -117,50 +117,50 @@ impl MenuItem {
     /// [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects]
     /// ```
     fn to_main_menu_points() -> [MenuItem; 3] {
-        return [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects];
+        [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects]
     }
 }
 
 /// enum for the request we want to send to server
 #[derive(Debug, Clone, Copy)]
 pub enum RequestType {
-    IssuesRequest,
-    PullRequestsRequest,
-    ProjectsRequest,
+    Issues,
+    PullRequests,
+    Projects,
 }
 
 impl RequestType {
     /// returns an iterator over all request types
     fn iter() -> impl Iterator<Item = &'static RequestType> {
         [
-            RequestType::IssuesRequest,
-            RequestType::PullRequestsRequest,
-            RequestType::ProjectsRequest,
+            RequestType::Issues,
+            RequestType::PullRequests,
+            RequestType::Projects,
         ]
         .iter()
     }
 
     /// converts a request type to str
-    fn to_str(&self) -> &'static str {
+    fn to_str(self) -> &'static str {
         match self {
-            RequestType::IssuesRequest => "IssuesRequest",
-            RequestType::PullRequestsRequest => "PullRequestsRequest",
-            RequestType::ProjectsRequest => "ProjectsRequest",
+            RequestType::Issues => "IssuesRequest",
+            RequestType::PullRequests => "PullRequestsRequest",
+            RequestType::Projects => "ProjectsRequest",
         }
     }
 }
 
 /// enum for data that can be reported about a repo
 pub enum RepoData {
-    ActiveRemoteData(String),
+    ActiveRemote(String),
 
-    IssuesData(issues_query::ResponseData),
-    PullRequestsData(pull_requests_query::ResponseData),
-    ProjectsData(projects_query::ResponseData),
+    Issues(issues_query::ResponseData),
+    PullRequests(pull_requests_query::ResponseData),
+    Projects(projects_query::ResponseData),
 
-    IssueInspectData(issue_detail_query::ResponseData),
-    PullRequestInspectData(issue_detail_query::ResponseData),
-    ProjectInspectData(issue_detail_query::ResponseData),
+    IssueInspect(issue_detail_query::ResponseData),
+    PullRequestInspect(issue_detail_query::ResponseData),
+    ProjectInspect(issue_detail_query::ResponseData),
 }
 
 /// main widget which manages all other widgets
@@ -193,10 +193,7 @@ impl Ui {
         let state = match State::read() {
             Ok(state) => state,
             Err(error) => {
-                log::error!(
-                    "Error {} occured while fetching state. Using default state",
-                    error
-                );
+                log::error!("Error {error} occured while fetching state. Using default state",);
                 State::default()
             }
         };
@@ -232,13 +229,8 @@ impl Ui {
     fn request_all(&self) {
         for request_type in RequestType::iter() {
             let request_type_string = request_type.to_str();
-            match self.send_request(*request_type) {
-                Err(error) => log::error!(
-                    "{} occured during initial {:?} request",
-                    error,
-                    request_type_string
-                ),
-                _ => (),
+            if let Err(error) = self.send_request(*request_type) {
+                log::error!("{error} occured during initial {request_type_string:?} request");
             }
         }
     }
@@ -359,43 +351,40 @@ impl Ui {
             Ok(runtime) => {
                 runtime.block_on(async {
                     match request_type {
-                        RequestType::IssuesRequest => match perform_issues_query(
-                            cloned_sender,
-                            variables.into(),
-                            cloned_access_token,
-                        )
-                        .await
-                        {
-                            Err(error) => {
-                                log::error!("issues_query returned an error. {}", error)
+                        RequestType::Issues => {
+                            if let Err(error) = perform_issues_query(
+                                cloned_sender,
+                                variables.into(),
+                                cloned_access_token,
+                            )
+                            .await
+                            {
+                                log::error!("issues_query returned an error. {error}");
                             }
-                            _ => (),
-                        },
+                        }
 
-                        RequestType::PullRequestsRequest => match perform_pull_requests_query(
-                            cloned_sender,
-                            variables.into(),
-                            cloned_access_token,
-                        )
-                        .await
-                        {
-                            Err(error) => {
-                                log::error!("pull_requests_query returned an error. {}", error)
+                        RequestType::PullRequests => {
+                            if let Err(error) = perform_pull_requests_query(
+                                cloned_sender,
+                                variables.into(),
+                                cloned_access_token,
+                            )
+                            .await
+                            {
+                                log::error!("pull_requests_query returned an error. {error}");
                             }
-                            _ => (),
-                        },
-                        RequestType::ProjectsRequest => match perform_projects_query(
-                            cloned_sender,
-                            variables.into(),
-                            cloned_access_token,
-                        )
-                        .await
-                        {
-                            Err(error) => {
-                                log::error!("projects_query returned an error. {}", error)
+                        }
+                        RequestType::Projects => {
+                            if let Err(error) = perform_projects_query(
+                                cloned_sender,
+                                variables.into(),
+                                cloned_access_token,
+                            )
+                            .await
+                            {
+                                log::error!("projects_query returned an error. {error}");
                             }
-                            _ => (),
-                        },
+                        }
                     }
                 });
             }
@@ -427,11 +416,8 @@ impl Ui {
         self.active_menu_item = MenuItem::Issues;
         self.ui_stack.select_panel(ISSUES_VIEW_NAME);
 
-        match self.send_request(RequestType::IssuesRequest) {
-            Err(error) => {
-                log::error!("{} occured during sending of issue request", error);
-            }
-            _ => (),
+        if let Err(error) = self.send_request(RequestType::Issues) {
+            log::error!("{error} occured during sending of issue request");
         }
     }
 
@@ -440,11 +426,8 @@ impl Ui {
         self.active_menu_item = MenuItem::PullRequests;
         self.ui_stack.select_panel(PULL_REQUESTS_VIEW_NAME);
 
-        match self.send_request(RequestType::PullRequestsRequest) {
-            Err(error) => {
-                log::error!("{} occured during sending of pull requests request", error);
-            }
-            _ => (),
+        if let Err(error) = self.send_request(RequestType::PullRequests) {
+            log::error!("{error} occured during sending of pull requests request");
         }
     }
 
@@ -453,11 +436,8 @@ impl Ui {
         self.active_menu_item = MenuItem::Projects;
         self.ui_stack.select_panel(PROJECTS_VIEW_NAME);
 
-        match self.send_request(RequestType::ProjectsRequest) {
-            Err(error) => {
-                log::error!("{} occured during sending of projects request", error);
-            }
-            _ => (),
+        if let Err(error) = self.send_request(RequestType::Projects) {
+            log::error!("{error} occured during sending of projects request");
         }
     }
 }
@@ -492,20 +472,20 @@ impl PanelElement for Ui {
             KeyEvent {
                 modifiers: KeyModifiers::CONTROL,
                 ..
-            } => match key_event.code {
-                KeyCode::Char('n') => match self.open_remote_explorer() {
-                    Err(error) => log::error!("{} occured while opening remote explorer!", error),
-                    _ => (),
-                },
-                _ => (),
-            },
+            } => {
+                if let KeyCode::Char('n') = key_event.code {
+                    if let Err(error) = self.open_remote_explorer() {
+                        log::error!("{} occured while opening remote explorer!", error);
+                    }
+                }
+            }
             _ => (),
         }
 
         false
     }
 
-    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> () {
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) {
         render_frame.render_widget(Clear, rect);
 
         let horizontal_chunks = Layout::default()
@@ -566,7 +546,7 @@ impl PanelElement for Ui {
         }
     }
 
-    fn tick(&mut self) -> () {
+    fn tick(&mut self) {
         // try_recv does not block the current thread which is nice here because we don't
         // have a tick signal recv() would block the thread until we receive a message from
         // the sender I am ignoring the error here but that may not be best practice
@@ -578,7 +558,7 @@ impl PanelElement for Ui {
 
         for data in self.data_response_data.drain(..) {
             match data {
-                RepoData::IssuesData(data) => match data.repository {
+                RepoData::Issues(data) => match data.repository {
                     Some(repo_data) => {
                         let top_priority = self.ui_stack.get_highest_priority() + 1;
                         if let Some((panel, _)) =
@@ -601,7 +581,7 @@ impl PanelElement for Ui {
                         log::debug!("Couldn't display issues since there was no repository in response data")
                     }
                 },
-                RepoData::PullRequestsData(data) => match data.repository {
+                RepoData::PullRequests(data) => match data.repository {
                     Some(repo_data) => {
                         let top_priority = self.ui_stack.get_highest_priority() + 1;
                         if let Some((panel, _)) = self
@@ -625,7 +605,7 @@ impl PanelElement for Ui {
                         log::debug!("Couldn't display issues since there was no repository in response data")
                     }
                 },
-                RepoData::ProjectsData(data) => match data.repository {
+                RepoData::Projects(data) => match data.repository {
                     Some(repo_data) => {
                         let top_priority = self.ui_stack.get_highest_priority() + 1;
                         if let Some((panel, _)) =
@@ -648,23 +628,20 @@ impl PanelElement for Ui {
                         log::debug!("Couldn't display issues since there was no repository in response data")
                     }
                 },
-                RepoData::ActiveRemoteData(remote) => {
-                    match self
+                RepoData::ActiveRemote(remote) => {
+                    if let Err(error) = self
                         .state
                         .set_repository_data(self.repo_root.clone(), remote.clone())
                     {
-                        Err(error) => {
-                            log::error!("{} occured during setting of active remote", error)
-                        }
-                        _ => (),
+                        log::error!("{error} occured during setting of active remote");
                     }
                     self.active_remote = Some(remote);
 
                     should_refresh_issues = true;
                 }
-                RepoData::IssueInspectData(_data) => (),
-                RepoData::PullRequestInspectData(_data) => (),
-                RepoData::ProjectInspectData(_data) => (),
+                RepoData::IssueInspect(_data) => (),
+                RepoData::PullRequestInspect(_data) => (),
+                RepoData::ProjectInspect(_data) => (),
             }
         }
 

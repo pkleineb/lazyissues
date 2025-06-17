@@ -1,5 +1,4 @@
 use std::{
-    rc::Rc,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -120,7 +119,7 @@ impl RemoteExplorer {
 
     /// removes the last character from the internal mask
     fn remove_from_mask(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.remote_mask.len() == 0 {
+        if self.remote_mask.is_empty() {
             return Ok(());
         }
 
@@ -146,9 +145,9 @@ impl RemoteExplorer {
         }
 
         if self.cursor_rendered_last_flicker {
-            return "_";
+            "_"
         } else {
-            return " ";
+            " "
         }
     }
 
@@ -157,10 +156,10 @@ impl RemoteExplorer {
         match self.state.selected() {
             Some(index) => match self.items.get(index) {
                 Some(selected_remote) => {
-                    let remote_url = get_git_remote_url_for_name(&selected_remote)?;
+                    let remote_url = get_git_remote_url_for_name(selected_remote)?;
 
                     self.remote_sender
-                        .send(RepoData::ActiveRemoteData(remote_url))?;
+                        .send(RepoData::ActiveRemote(remote_url))?;
 
                     self.quit = true;
 
@@ -181,18 +180,21 @@ impl PanelElement for RemoteExplorer {
                 ..
             } => match key_event.code {
                 KeyCode::Tab => self.next_entry(),
-                KeyCode::Enter => match self.select_remote() {
-                    Err(error) => log::error!("{} occured on selecting remote!", error),
-                    _ => (),
-                },
-                KeyCode::Char(char) => match self.add_to_mask(char) {
-                    Err(error) => log::error!("{} occured during adding to mask!", error),
-                    _ => (),
-                },
-                KeyCode::Backspace => match self.remove_from_mask() {
-                    Err(error) => log::error!("{} occured on removing from mask!", error),
-                    _ => (),
-                },
+                KeyCode::Enter => {
+                    if let Err(error) = self.select_remote() {
+                        log::error!("{error} occured on selecting remote!");
+                    }
+                }
+                KeyCode::Char(char) => {
+                    if let Err(error) = self.add_to_mask(char) {
+                        log::error!("{error} occured during adding to mask!");
+                    }
+                }
+                KeyCode::Backspace => {
+                    if let Err(error) = self.remove_from_mask() {
+                        log::error!("{error} occured on removing from mask!");
+                    }
+                }
                 KeyCode::Esc => self.quit = true,
                 _ => (),
             },
@@ -201,10 +203,11 @@ impl PanelElement for RemoteExplorer {
                 ..
             } => match key_event.code {
                 KeyCode::BackTab => self.previous_entry(),
-                KeyCode::Char(char) => match self.add_to_mask(char) {
-                    Err(error) => log::error!("{} occured during adding to mask!", error),
-                    _ => (),
-                },
+                KeyCode::Char(char) => {
+                    if let Err(error) = self.add_to_mask(char) {
+                        log::error!("{error} occured during adding to mask!");
+                    }
+                }
                 _ => (),
             },
             _ => (),
@@ -235,9 +238,7 @@ impl PanelElement for RemoteExplorer {
         render_frame.render_stateful_widget(display_rect, floating_area, &mut self.state);
     }
 
-    fn tick(&mut self) -> () {
-        ()
-    }
+    fn tick(&mut self) {}
 
     fn update(&mut self, _data: Box<dyn std::any::Any>) -> bool {
         false

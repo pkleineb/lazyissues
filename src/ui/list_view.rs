@@ -3,9 +3,9 @@ use std::{cmp::max, sync::mpsc};
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Flex, Layout, Rect},
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     text::Span,
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
@@ -167,7 +167,7 @@ impl<T: ListCollection> ListView<T> {
             let mut constraints: Vec<Constraint> = vec![];
 
             for label in labels {
-                let label_fmt = format!("[{}]", label);
+                let label_fmt = format!("[{label}]");
                 constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
                 tags.push(Paragraph::new(Span::styled(
                     label_fmt,
@@ -210,9 +210,9 @@ impl<T: ListCollection> PanelElement for ListView<T> {
         }
     }
 
-    fn tick(&mut self) -> () {}
+    fn tick(&mut self) {}
 
-    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> () {
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) {
         render_frame.render_widget(Clear, rect);
 
         let items = self.collection.get_items();

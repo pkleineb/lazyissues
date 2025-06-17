@@ -9,7 +9,7 @@ pub fn get_remote_names() -> Result<Vec<String>, git2::Error> {
 
     let remote_names: Vec<String> = remotes
         .iter()
-        .filter_map(|remote_name| remote_name.and_then(|name| Some(name.to_string())))
+        .filter_map(|remote_name| remote_name.map(|name| name.to_string()))
         .collect();
 
     Ok(remote_names)

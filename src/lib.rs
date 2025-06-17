@@ -1,6 +1,5 @@
 use std::{
     io,
-    rc::Rc,
     result::Result,
     sync::mpsc,
     time::{Duration, Instant},
@@ -12,9 +11,8 @@ use ratatui::{
         event::{self, Event as CrossEvent},
         terminal::disable_raw_mode,
     },
-    layout::{Constraint, Layout, Rect},
     prelude::CrosstermBackend,
-    Frame, Terminal,
+    Terminal,
 };
 use ui::{PanelElement, Ui};
 

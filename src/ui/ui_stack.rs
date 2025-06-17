@@ -1,13 +1,4 @@
-use std::{
-    any::Any,
-    collections::{BTreeMap, HashMap},
-};
-
-use ratatui::{
-    crossterm::event::KeyEvent,
-    layout::{Constraint, Direction, Layout, Rect},
-    Frame,
-};
+use std::collections::{BTreeMap, HashMap};
 
 use crate::ui::PanelElement;
 

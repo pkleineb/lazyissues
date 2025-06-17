@@ -111,7 +111,7 @@ pub const STATE_NAME: &str = "state.kdl";
 /// gets the lazyissues config filepath
 pub fn get_config_file() -> PathBuf {
     config_local_dir()
-        .unwrap_or(PathBuf::default())
+        .unwrap_or_default()
         .join(CONFIG_DIR_NAME)
         .join(CONFIG_NAME)
         .to_owned()
@@ -120,7 +120,7 @@ pub fn get_config_file() -> PathBuf {
 /// gets the lazyissues state filepath
 pub fn get_state_file() -> PathBuf {
     config_local_dir()
-        .unwrap_or(PathBuf::default())
+        .unwrap_or_default()
         .join(CONFIG_DIR_NAME)
         .join(STATE_NAME)
         .to_owned()
@@ -180,10 +180,10 @@ impl Config {
 
     /// creates config based on a KdlDocument parsed to a string
     fn from_kdl_str(kdl_str: &str) -> Result<Self, IoError> {
-        let kdl_config = KdlDocument::parse(kdl_str).map_err(|e| {
+        let kdl_config = KdlDocument::parse(kdl_str).map_err(|error| {
             IoError::new(
                 std::io::ErrorKind::InvalidData,
-                format!("KDL parse error: {}", e),
+                format!("KDL parse error: {error}"),
             )
         })?;
 
@@ -310,7 +310,7 @@ impl Config {
             "gitea" => read_token_file_backend!(&self.gitea_token_path),
             _ => Err(IoError::new(
                 std::io::ErrorKind::NotFound,
-                format!("No token for {} found", token_type),
+                format!("No token for {token_type} found"),
             )),
         }
     }
@@ -321,7 +321,7 @@ impl Config {
 
         if let Some(mut stdin) = child.stdin.take() {
             let active_remote = git::get_active_remote()?;
-            stdin.write(&format!("protocol=https\nhost={}\n\n", active_remote).into_bytes())?;
+            stdin.write_all(&format!("protocol=https\nhost={active_remote}\n\n").into_bytes())?;
         }
 
         let output = self.wait_for_credential_output(child)?;
@@ -334,7 +334,7 @@ impl Config {
             }
         }
 
-        return Err("No GitHub token found in git credentials".into());
+        Err("No GitHub token found in git credentials".into())
     }
 
     /// waits for credential output trying `self.credential_attempts` times
@@ -382,19 +382,18 @@ impl State {
 
     /// creates a new `State` object by reading a KdlDocument's parsed string
     fn from_kdl_str(kdl_str: &str) -> std::io::Result<Self> {
-        let kdl_state = KdlDocument::parse(kdl_str).map_err(|e| {
+        let kdl_state = KdlDocument::parse(kdl_str).map_err(|error| {
             IoError::new(
                 std::io::ErrorKind::InvalidData,
-                format!("KDL parse error: {}", e),
+                format!("KDL parse error: {error}"),
             )
         })?;
 
         let mut state = Self::default();
 
         for node in kdl_state.nodes() {
-            match state.apply_option(&kdl_state, node.name().value()) {
-                Err(error) => log::error!("{} occured while parsing config", error),
-                _ => (),
+            if let Err(error) = state.apply_option(&kdl_state, node.name().value()) {
+                log::error!("{error} occured while parsing config");
             }
         }
 
@@ -413,15 +412,11 @@ impl State {
             Some(node) => match option_name {
                 "repositories" => self.read_repositories(node),
                 _ => {
-                    log::debug!("Option: {} is not a recognized option", option_name);
+                    log::debug!("Option: {option_name} is not a recognized option");
                 }
             },
             _ => {
-                log::debug!(
-                    "Option: {} is not a child of node: {:?}",
-                    option_name,
-                    parent_node
-                );
+                log::debug!("Option: {option_name} is not a child of node: {parent_node:?}");
             }
         }
         Ok(())
@@ -430,21 +425,18 @@ impl State {
     /// reads repositories found in state file
     fn read_repositories(&mut self, repositories_node: &KdlNode) {
         for child in repositories_node.iter_children() {
-            match child.name().value() {
-                "repo" => {
-                    let entries: Vec<&str> = get_entries_as_string_vec!(child);
-                    if entries.len() < 2 {
-                        log::warn!("repo tag is malformed. Missing either local repo path, active remote or both: {:?}", child);
-                        continue;
-                    }
-
-                    let repo_path = PathBuf::from(entries[0]);
-                    let active_remote = entries[1];
-
-                    self.repository_state
-                        .insert(repo_path, active_remote.to_string());
+            if let "repo" = child.name().value() {
+                let entries: Vec<&str> = get_entries_as_string_vec!(child);
+                if entries.len() < 2 {
+                    log::warn!("repo tag is malformed. Missing either local repo path, active remote or both: {child:?}");
+                    continue;
                 }
-                _ => (),
+
+                let repo_path = PathBuf::from(entries[0]);
+                let active_remote = entries[1];
+
+                self.repository_state
+                    .insert(repo_path, active_remote.to_string());
             }
         }
     }
@@ -471,18 +463,22 @@ impl State {
         let mut kdl_state = KdlDocument::new();
 
         let mut repositories_node = KdlNode::new("repositories");
-        let mut repositories_node_fmt = KdlNodeFormat::default();
-        repositories_node_fmt.trailing = "\n".to_string();
-        repositories_node_fmt.before_children = " ".to_string();
+        let repositories_node_fmt = KdlNodeFormat {
+            trailing: "\n".into(),
+            before_children: " ".into(),
+            ..Default::default()
+        };
         repositories_node.set_format(repositories_node_fmt);
 
         let mut repositories_children = KdlDocument::new();
 
         for (local_path, remote) in self.repository_state.iter() {
             let mut repo_node = KdlNode::new("repo");
-            let mut node_fmt = KdlNodeFormat::default();
-            node_fmt.leading = "    ".to_string();
-            node_fmt.trailing = "\n".to_string();
+            let node_fmt = KdlNodeFormat {
+                leading: "    ".to_string(),
+                trailing: "\n".to_string(),
+                ..Default::default()
+            };
             repo_node.set_format(node_fmt);
 
             repo_node.push(local_path.to_str().unwrap_or(""));

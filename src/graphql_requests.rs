@@ -2,11 +2,11 @@
 /// the graphql queries
 macro_rules! impl_Into_T_for_VariableStore {
     ($module:ident) => {
-        impl Into<$module::Variables> for VariableStore {
-            fn into(self) -> $module::Variables {
+        impl From<VariableStore> for $module::Variables {
+            fn from(variable_store: VariableStore) -> $module::Variables {
                 $module::Variables {
-                    repo_name: self.repo_name,
-                    repo_owner: self.repo_owner,
+                    repo_name: variable_store.repo_name,
+                    repo_owner: variable_store.repo_owner,
                 }
             }
         }
@@ -121,7 +121,7 @@ pub mod github {
                 let mut headers = header::HeaderMap::new();
                 headers.insert(
                     header::AUTHORIZATION,
-                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                    header::HeaderValue::from_str(&format!("Bearer {access_token}"))?,
                 );
                 headers
             })
@@ -140,7 +140,7 @@ pub mod github {
         }
 
         match response_body.data {
-            Some(data) => Ok(response_sender.send(RepoData::IssuesData(data))?),
+            Some(data) => Ok(response_sender.send(RepoData::Issues(data))?),
             None => Err("No response data returned.".into()),
         }
     }
@@ -170,7 +170,7 @@ pub mod github {
                 let mut headers = header::HeaderMap::new();
                 headers.insert(
                     header::AUTHORIZATION,
-                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                    header::HeaderValue::from_str(&format!("Bearer {access_token}"))?,
                 );
                 headers
             })
@@ -191,7 +191,7 @@ pub mod github {
         }
 
         match response_body.data {
-            Some(data) => Ok(response_sender.send(RepoData::PullRequestsData(data))?),
+            Some(data) => Ok(response_sender.send(RepoData::PullRequests(data))?),
             None => Err("No response data returned.".into()),
         }
     }
@@ -221,7 +221,7 @@ pub mod github {
                 let mut headers = header::HeaderMap::new();
                 headers.insert(
                     header::AUTHORIZATION,
-                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                    header::HeaderValue::from_str(&format!("Bearer {access_token}"))?,
                 );
                 headers
             })
@@ -241,7 +241,7 @@ pub mod github {
         }
 
         match response_body.data {
-            Some(data) => Ok(response_sender.send(RepoData::ProjectsData(data))?),
+            Some(data) => Ok(response_sender.send(RepoData::Projects(data))?),
             None => Err("No response data returned.".into()),
         }
     }
@@ -277,10 +277,8 @@ pub mod github {
             let mut result = Vec::new();
             if let Some(labels) = &self.labels {
                 if let Some(nodes) = &labels.nodes {
-                    for node in nodes {
-                        if let Some(label) = node {
-                            result.push(label.name.clone());
-                        }
+                    for label in nodes.iter().flatten() {
+                        result.push(label.name.clone());
                     }
                 }
             }
@@ -339,10 +337,8 @@ pub mod github {
             let mut result = Vec::new();
             if let Some(labels) = &self.labels {
                 if let Some(nodes) = &labels.nodes {
-                    for node in nodes {
-                        if let Some(label) = node {
-                            result.push(label.name.clone());
-                        }
+                    for label in nodes.iter().flatten() {
+                        result.push(label.name.clone());
                     }
                 }
             }
@@ -447,7 +443,7 @@ pub mod github {
                 let mut headers = header::HeaderMap::new();
                 headers.insert(
                     header::AUTHORIZATION,
-                    header::HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+                    header::HeaderValue::from_str(&format!("Bearer {access_token}"))?,
                 );
                 headers
             })
@@ -467,7 +463,7 @@ pub mod github {
         }
 
         match response_body.data {
-            Some(data) => Ok(response_sender.send(RepoData::IssueInspectData(data))?),
+            Some(data) => Ok(response_sender.send(RepoData::IssueInspect(data))?),
             None => Err("No response data returned.".into()),
         }
     }

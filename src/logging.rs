@@ -1,11 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
-    io,
-    path::PathBuf,
-    rc::Rc,
     result::Result,
-    sync::mpsc,
-    time::{Duration, Instant},
 };
 
 use dirs::data_local_dir;
@@ -16,9 +11,7 @@ pub const LOG_DIR_NAME: &str = "lazyissues";
 
 /// call before main logic to start logging
 pub fn enable_logging() -> Result<(), std::io::Error> {
-    let log_dir = data_local_dir()
-        .unwrap_or(PathBuf::new())
-        .join(LOG_DIR_NAME);
+    let log_dir = data_local_dir().unwrap_or_default().join(LOG_DIR_NAME);
 
     fs::create_dir_all(&log_dir)?;
 
