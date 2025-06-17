@@ -15,11 +15,21 @@ pub mod tab_menu;
 
 /// trait for handling widget interactions
 pub trait PanelElement {
+    /// passes input to the `PanelElement`
+    /// returns `true` if event was handled and no further event should be handled else false
     fn handle_input(&mut self, key_event: KeyEvent) -> bool;
+    /// renders the `PanelElement`
     fn render(&mut self, render_frame: &mut Frame, rect: Rect);
+    /// ticks the `PanelElement` making room for for example fetching or receiving data
     fn tick(&mut self);
+    /// updates the panel element with new data
+    /// returns true if the update was successfull otherwise false
     fn update(&mut self, data: Box<dyn Any>) -> bool;
+    /// returns true if the panel wants to close. The caller should determine if closing the widget
+    /// is enough
     fn wants_to_quit(&self) -> bool;
+    /// tells the `PanelElement` that it has focus.
+    /// returns true if the panel actually has focus
     fn set_focus(&mut self, state: bool) -> bool;
 }
 
