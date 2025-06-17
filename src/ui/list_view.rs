@@ -19,28 +19,42 @@ use crate::{
 
 use super::{tab_menu::RepoData, PanelElement};
 
+/// issues view name for the `UiStack`
 pub const ISSUES_VIEW_NAME: &str = "issues_view";
+/// pull requests view name for the `UiStack`
 pub const PULL_REQUESTS_VIEW_NAME: &str = "pull_requests_view";
+/// projects view name for the `UiStack`
 pub const PROJECTS_VIEW_NAME: &str = "projects_view";
 
+/// trait for items to be displayed in a `ListView`
 pub trait ListItem: std::fmt::Debug {
+    /// returns the title of that item
     fn get_title(&self) -> &str;
+    /// returns the number of that item
     fn get_number(&self) -> i64;
+    /// check wether or not the item is closed
     fn is_closed(&self) -> bool;
+    /// returns the author login(username) of that item
     fn get_author_login(&self) -> Option<&str>;
+    /// returns the timestamp of creation of that item
     fn get_created_at(&self) -> &str;
+    /// returns all labels of that item
     fn get_labels(&self) -> Vec<String>;
 }
 
+/// trait for remote data to be used as a collection of `ListItem`s
 pub trait ListCollection {
+    /// converts the data given to a `ListCollection` implementing struct
     fn from_repository_data(
         data: Box<dyn std::any::Any>,
     ) -> Result<Self, Box<dyn std::error::Error>>
     where
         Self: Sized;
+    /// returns all items of the `ListCollection`
     fn get_items(&self) -> Vec<Box<dyn ListItem>>;
 }
 
+/// displays `ListItem`s
 pub struct ListView<T: ListCollection> {
     collection: T,
     item_amount: usize,
@@ -53,6 +67,7 @@ pub struct ListView<T: ListCollection> {
 }
 
 impl<T: ListCollection> ListView<T> {
+    /// creates a new `ListView<T>` based on the ListCollection given
     pub fn new(collection: T, config: Config, data_sender_cloner: mpsc::Sender<RepoData>) -> Self {
         let item_amount = collection.get_items().len();
         Self {
@@ -67,6 +82,7 @@ impl<T: ListCollection> ListView<T> {
         }
     }
 
+    /// selects the next item, wrapping on the edges
     fn select_next_item(&mut self) {
         // usize will probably not be exceeded
         self.selected_item = self.selected_item.saturating_add(1);
@@ -75,6 +91,7 @@ impl<T: ListCollection> ListView<T> {
         }
     }
 
+    /// selects the previous item, wrapping on the edges
     fn select_previous_item(&mut self) {
         // usize will probably not be exceeded
         if self.selected_item == 0 {
@@ -84,6 +101,7 @@ impl<T: ListCollection> ListView<T> {
         }
     }
 
+    /// displays a singular item on it's asigned area
     fn display_item(
         &self,
         item: &dyn ListItem,
@@ -252,6 +270,7 @@ impl<T: ListCollection> PanelElement for ListView<T> {
     }
 }
 
+/// quickly creates an widgets where you can view issues on
 pub fn create_issues_view(
     data: issues_query::IssuesQueryRepository,
     config: Config,
@@ -261,6 +280,7 @@ pub fn create_issues_view(
     ListView::new(collection, config, data_sender)
 }
 
+/// quickly creates an widgets where you can view pull requests on
 pub fn create_pull_requests_view(
     data: pull_requests_query::PullRequestsQueryRepository,
     config: Config,
@@ -270,6 +290,7 @@ pub fn create_pull_requests_view(
     ListView::new(collection, config, data_sender)
 }
 
+/// quickly creates an widgets where you can view projects on
 pub fn create_projects_view(
     data: projects_query::ProjectsQueryRepository,
     config: Config,
