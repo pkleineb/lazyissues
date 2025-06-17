@@ -16,7 +16,7 @@ use ratatui::{
     prelude::CrosstermBackend,
     Frame, Terminal,
 };
-use ui::{tab_menu::TabMenu, PanelElement};
+use ui::{PanelElement, Ui};
 
 mod config;
 mod graphql_requests;
@@ -157,7 +157,7 @@ impl TerminalApp {
             return;
         }
 
-        let mut menu = match TabMenu::new(self.config.clone()) {
+        let mut ui = match Ui::new(self.config.clone()) {
             Ok(menu) => menu,
             Err(error) => {
                 log::error!("{} occured during creation of TabMenu.", error);
@@ -167,12 +167,12 @@ impl TerminalApp {
 
         loop {
             // we call tick for the menu so it can try and receive data
-            menu.tick();
+            ui.tick();
 
             let draw_success = self.terminal.draw(|render_frame| {
-                let layout = Self::create_base_layout(render_frame);
+                let layout = ui::layouts::create_base_layout(render_frame);
 
-                menu.render(render_frame, layout[0])
+                ui.render(render_frame, layout[0])
             });
 
             if let Err(error) = draw_success {
@@ -186,7 +186,7 @@ impl TerminalApp {
                 Ok(event) => match event {
                     Event::Input(event) => {
                         if let CrossEvent::Key(key) = event {
-                            menu.handle_input(key);
+                            ui.handle_input(key);
                         }
                     }
                     Event::Tick => {}
@@ -199,20 +199,11 @@ impl TerminalApp {
                 }
             };
 
-            if menu.wants_to_quit() {
+            if ui.wants_to_quit() {
                 self.clean_up_terminal(None);
                 break;
             }
         }
-    }
-
-    /// creates the base rendering layout
-    fn create_base_layout(render_frame: &mut Frame) -> Rc<[Rect]> {
-        let size = render_frame.area();
-        Layout::default()
-            .direction(ratatui::layout::Direction::Vertical)
-            .constraints([Constraint::Min(2)].as_ref())
-            .split(size)
     }
 
     /// cleans up terminal after finish executing

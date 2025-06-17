@@ -1,17 +1,47 @@
-use std::{
-    any::Any,
-    collections::{BTreeMap, HashMap},
-};
+use std::{any::Any, collections::HashMap, error::Error, path::PathBuf, sync::mpsc, thread};
 
 use ratatui::{
-    crossterm::event::KeyEvent,
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    widgets::{Block, Borders, Clear},
     Frame,
 };
+use regex::Regex;
+use tokio::runtime::Runtime;
 
+use crate::{
+    config::{git::get_git_repo_root, Config, State},
+    graphql_requests::github::{
+        issue_detail_query, issues_query, perform_issues_query, perform_projects_query,
+        perform_pull_requests_query, projects_query, pull_requests_query, VariableStore,
+    },
+};
+
+use {
+    list_view::{
+        create_issues_view, create_projects_view, create_pull_requests_view, ISSUES_VIEW_NAME,
+        PROJECTS_VIEW_NAME, PULL_REQUESTS_VIEW_NAME,
+    },
+    remote_explorer::{RemoteExplorer, REMOTE_EXPLORER_NAME},
+    ui_stack::UiStack,
+};
+
+/// sets the position of the issues list view widget (position in the layout tuple)
+pub const ISSUES_LAYOUT_POSITION: usize = 0;
+/// sets the position of the pull requests list view widget (position in the layout tuple)
+pub const PULL_REQUESTS_LAYOUT_POSITION: usize = 1;
+/// sets the position of the projects list view widget (position in the layout tuple)
+pub const PROJECTS_LAYOUT_POSITION: usize = 2;
+/// sets the position of the detail widget (position in the layout tuple)
+pub const DETAIL_LAYOUT_POSITION: usize = 0;
+/// sets the position of the status widget (position in the layout tuple)
+pub const STATUS_LAYOUT_POSITION: usize = 1;
+
+pub mod layouts;
 pub mod list_view;
 pub mod remote_explorer;
-pub mod tab_menu;
+pub mod ui_stack;
 
 /// trait for handling widget interactions
 pub trait PanelElement {
@@ -33,245 +63,637 @@ pub trait PanelElement {
     fn set_focus(&mut self, state: bool) -> bool;
 }
 
-/// keeps track of PanelElement trait objects while keeping them sorted by their priority
-pub struct UiStack {
-    panels: BTreeMap<u8, (Box<dyn PanelElement>, String)>,
-    panel_names: HashMap<String, u8>,
+/// enum used to select the currently active menuitem so we can highlight it
+#[derive(Hash, PartialEq, Eq)]
+pub enum MenuItem {
+    Issues,
+    PullRequests,
+    Projects,
 }
 
-impl UiStack {
-    /// creates a new empty `UiStack`
-    pub fn new() -> Self {
-        Self {
-            panels: BTreeMap::new(),
-            panel_names: HashMap::new(),
+impl From<&MenuItem> for usize {
+    /// converts `MenuItem` into usize
+    /// ```no_run
+    /// MenuItem::Issues => 0,
+    /// MenuItem::PullRequests => 1,
+    /// MenuItem::Projects => 2,
+    /// ```
+    fn from(input: &MenuItem) -> usize {
+        match input {
+            MenuItem::Issues => 0,
+            MenuItem::PullRequests => 1,
+            MenuItem::Projects => 2,
         }
     }
+}
 
-    /// adds a `PanelElement` to the `UiStack`
-    pub fn add_panel<P: PanelElement + 'static>(
-        &mut self,
-        panel: P,
-        priority: u8,
-        name: impl Into<String> + Copy,
-    ) {
-        self.panel_names.insert(name.into(), priority);
-        self.panels.insert(priority, (Box::new(panel), name.into()));
-    }
-
-    /// clears the whole `UiStack` of all of its elements
-    pub fn clear(&mut self) {
-        self.panels.clear();
-        self.panel_names.clear();
-    }
-
-    /// removes a panel based on it's priority and returns that element if an element with that
-    /// priority was found
-    pub fn remove_panel(&mut self, priority: u8) -> Option<(Box<dyn PanelElement>, String)> {
-        self.panel_names.retain(|_, &mut p| p != priority);
-        self.panels.remove(&priority)
-    }
-
-    /// removes the panel with the highest priority from the `UiStack` and returns that panel if
-    /// there was any panel in the `UiStack`
-    pub fn remove_highest_priority_panel(&mut self) -> Option<(Box<dyn PanelElement>, String)> {
-        if let Some((&priority, _)) = self.panels.last_key_value() {
-            return self.remove_panel(priority);
+impl From<&MenuItem> for String {
+    /// converts `MenuItem` into String
+    /// ```no_run
+    /// MenuItem::Issues => "Issues",
+    /// MenuItem::PullRequests => "Pull requests",
+    /// MenuItem::Projects => "Projects",
+    /// ```
+    fn from(input: &MenuItem) -> String {
+        match input {
+            MenuItem::Issues => "Issues".to_string(),
+            MenuItem::PullRequests => "Pull requests".to_string(),
+            MenuItem::Projects => "Projects".to_string(),
         }
-        None
+    }
+}
+
+impl MenuItem {
+    /// returns the main menu points as `&str` in an array
+    /// ```no_run
+    /// ["Issues", "Pull requests", "Projects"]
+    /// ```
+    fn to_main_menu_points_str() -> [&'static str; 3] {
+        return ["Issues", "Pull requests", "Projects"];
     }
 
-    /// removes the panel with the lowest priority from the `UiStack` and returns that panel if
-    /// there was any panel in the `UiStack`
-    pub fn remove_lowest_priority_panel(&mut self) -> Option<(Box<dyn PanelElement>, String)> {
-        if let Some((&priority, _)) = self.panels.first_key_value() {
-            return self.remove_panel(priority);
+    /// returns the main menu points as `MenuItem` in an array
+    /// ```no_run
+    /// [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects]
+    /// ```
+    fn to_main_menu_points() -> [MenuItem; 3] {
+        return [MenuItem::Issues, MenuItem::PullRequests, MenuItem::Projects];
+    }
+}
+
+/// enum for the request we want to send to server
+#[derive(Debug, Clone, Copy)]
+pub enum RequestType {
+    IssuesRequest,
+    PullRequestsRequest,
+    ProjectsRequest,
+}
+
+impl RequestType {
+    /// returns an iterator over all request types
+    fn iter() -> impl Iterator<Item = &'static RequestType> {
+        [
+            RequestType::IssuesRequest,
+            RequestType::PullRequestsRequest,
+            RequestType::ProjectsRequest,
+        ]
+        .iter()
+    }
+
+    /// converts a request type to str
+    fn to_str(&self) -> &'static str {
+        match self {
+            RequestType::IssuesRequest => "IssuesRequest",
+            RequestType::PullRequestsRequest => "PullRequestsRequest",
+            RequestType::ProjectsRequest => "ProjectsRequest",
         }
-        None
     }
+}
 
-    /// removes a panel by it's name. If no panel with this name could be found return `None` other
-    /// wise returns `Some(panel)`
-    pub fn remove_panel_by_name(&mut self, name: &str) -> Option<(Box<dyn PanelElement>, String)> {
-        if let Some(&priority) = self.panel_names.get(name) {
-            self.panel_names.remove(name);
-            return self.panels.remove(&priority);
-        }
+/// enum for data that can be reported about a repo
+pub enum RepoData {
+    ActiveRemoteData(String),
 
-        None
-    }
+    IssuesData(issues_query::ResponseData),
+    PullRequestsData(pull_requests_query::ResponseData),
+    ProjectsData(projects_query::ResponseData),
 
-    /// returns the highest priorty currently in the `UiStack`
-    pub fn get_highest_priority(&self) -> u8 {
-        self.panels
-            .last_key_value()
-            .map_or(0, |(priority, _)| *priority)
-    }
+    IssueInspectData(issue_detail_query::ResponseData),
+    PullRequestInspectData(issue_detail_query::ResponseData),
+    ProjectInspectData(issue_detail_query::ResponseData),
+}
 
-    /// returns the names of all panels that are currently registered in `UiStack`
-    pub fn get_panel_names(&self) -> Vec<&String> {
-        self.panel_names.keys().collect()
-    }
+/// main widget which manages all other widgets
+pub struct Ui {
+    active_menu_item: MenuItem,
 
-    /// get a reference to a panel based on its name if the name exists in the `UiStack`
-    pub fn get_panel_ref_by_name(&self, name: &str) -> Option<&(Box<dyn PanelElement>, String)> {
-        if let Some(&priority) = self.panel_names.get(name) {
-            return self.panels.get(&priority);
-        }
+    data_receiver: mpsc::Receiver<RepoData>,
+    data_clone_sender: mpsc::Sender<RepoData>,
 
-        None
-    }
+    // this might be a stupid way to store this
+    data_response_data: Vec<RepoData>,
 
-    /// get a mutable reference to a panel based on its name if the name exists in the `UiStack`
-    pub fn get_panel_mut_ref_by_name(
-        &mut self,
-        name: &str,
-    ) -> Option<&mut (Box<dyn PanelElement>, String)> {
-        if let Some(&priority) = self.panel_names.get(name) {
-            return self.panels.get_mut(&priority);
-        }
+    config: Config,
+    state: State,
 
-        None
-    }
+    repo_root: PathBuf,
+    active_remote: Option<String>,
 
-    /// iterates over all panels from lowest to highest priority
-    /// use iter_rev if you want to iterate from highest to lowest priority
-    pub fn iter(&mut self) -> impl Iterator<Item = &mut (Box<dyn PanelElement>, String)> {
-        self.panels.values_mut()
-    }
+    ui_stack: UiStack,
 
-    /// iterates over all panles from highest to lowest priority
-    /// use iter if you want to iterate from lowest to highest priority
-    pub fn iter_rev(&mut self) -> impl Iterator<Item = &mut (Box<dyn PanelElement>, String)> {
-        self.panels.values_mut().rev()
-    }
+    quit: bool,
+}
 
-    /// iterate over all panels from lowest ot highest priority
-    /// returns both panel and it's associated priority
-    pub fn iter_with_priority(
-        &mut self,
-    ) -> impl Iterator<Item = (&u8, &mut (Box<dyn PanelElement>, String))> {
-        self.panels.iter_mut()
-    }
+impl Ui {
+    /// creates a new `Ui`.
+    /// This might Error when it can't readout the git repo one is currently in
+    pub fn new(config: Config) -> Result<Self, git2::Error> {
+        let (data_clone_sender, data_receiver) = mpsc::channel();
 
-    /// selects a panel based on it's name. Selecting means telling the panel it has focus and
-    /// increasing the panels priority to n + 1, n being the former top priority. This also
-    /// normalizes all the priorities in the `UiStack` since only the order is really important for
-    /// us
-    pub fn select_panel(&mut self, name: &str) -> bool {
-        let success = match self.get_panel_mut_ref_by_name(name) {
-            Some((panel, _)) => panel.set_focus(true),
-            None => {
-                log::debug!(
-                    "Panel with name: {} was not in ui stack and therefore can't be selected.",
-                    name
+        let state = match State::read() {
+            Ok(state) => state,
+            Err(error) => {
+                log::error!(
+                    "Error {} occured while fetching state. Using default state",
+                    error
                 );
-                false
+                State::default()
             }
         };
 
-        if !success {
-            return false;
+        let repo_root = get_git_repo_root()?;
+        let active_remote = state.get_repository_data(&repo_root);
+
+        let mut ui = Self {
+            active_menu_item: MenuItem::Issues,
+            data_receiver,
+            data_clone_sender,
+            data_response_data: vec![],
+            config,
+            state,
+            repo_root,
+            active_remote,
+            ui_stack: UiStack::new(),
+            quit: false,
+        };
+
+        ui.add_menu_panels();
+
+        if ui.active_remote.is_some() {
+            ui.request_all();
+        } else {
+            ui.open_remote_explorer()?;
         }
 
-        if self
-            .panel_names
-            .get(name)
-            .expect("Has to exist because otherwise we would have returned ealier.")
-            != &self.get_highest_priority()
-        {
-            if let Some((old_panel, _)) = self.panels.get_mut(&self.get_highest_priority()) {
-                old_panel.set_focus(false);
-            }
-        }
-
-        self.set_panel_priority_by_name(self.get_highest_priority() + 1, name);
-        self.normalize_priorities();
-
-        true
+        Ok(ui)
     }
 
-    /// sets the priority of a panel based on it's name. If there was no such panel with this name
-    /// log a debug message.
-    pub fn set_panel_priority_by_name(&mut self, new_priority: u8, name: &str) {
-        if let Some(&priority) = self.panel_names.get(name) {
-            if new_priority == priority {
-                return;
+    /// fetches all requests to populate the list_view widgets
+    fn request_all(&self) {
+        for request_type in RequestType::iter() {
+            let request_type_string = request_type.to_str();
+            match self.send_request(*request_type) {
+                Err(error) => log::error!(
+                    "{} occured during initial {:?} request",
+                    error,
+                    request_type_string
+                ),
+                _ => (),
             }
-
-            if self.panels.contains_key(&new_priority) {
-                log::debug!(
-                    "Panel with name: {name} was set to the same priority as another panel."
-                );
-                return;
-            }
-
-            if let Some(panel) = self.panels.remove(&priority) {
-                self.panel_names.insert(name.to_string(), new_priority);
-                self.panels.insert(new_priority, panel);
-            }
-
-            return;
         }
-
-        log::debug!("Panel with name: {name} was not in ui stack and can therefore not have it's priority changed.")
     }
 
-    // this works but doesn't feel very well coded so I am not sure if I want to keep this
-    /// normalises all priorities in `UiStack` this creates and populates new internal objects for
-    /// storing panels.
-    pub fn normalize_priorities(&mut self) {
-        if self.panels.is_empty() {
-            return;
+    /// adds all widgets to it's inner `UiStack`
+    fn add_menu_panels(&mut self) {
+        self.ui_stack.add_panel(
+            create_issues_view(
+                issues_query::IssuesQueryRepository {
+                    issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
+                },
+                self.config.clone(),
+                self.data_clone_sender.clone(),
+            ),
+            2,
+            ISSUES_VIEW_NAME,
+        );
+
+        self.ui_stack.add_panel(
+            create_pull_requests_view(
+                pull_requests_query::PullRequestsQueryRepository {
+                    pull_requests: pull_requests_query::PullRequestsQueryRepositoryPullRequests {
+                        nodes: None,
+                    },
+                },
+                self.config.clone(),
+                self.data_clone_sender.clone(),
+            ),
+            0,
+            PULL_REQUESTS_VIEW_NAME,
+        );
+
+        self.ui_stack.add_panel(
+            create_projects_view(
+                projects_query::ProjectsQueryRepository {
+                    projects_v2: projects_query::ProjectsQueryRepositoryProjectsV2 { nodes: None },
+                },
+                self.config.clone(),
+                self.data_clone_sender.clone(),
+            ),
+            1,
+            PROJECTS_VIEW_NAME,
+        );
+
+        self.ui_stack.select_panel(ISSUES_VIEW_NAME);
+    }
+
+    /// adds the remote explorer for selecting remotes to it's panels and selecting it
+    fn open_remote_explorer(&mut self) -> Result<(), git2::Error> {
+        self.ui_stack.add_panel(
+            RemoteExplorer::new(self.data_clone_sender.clone())?,
+            self.ui_stack.get_highest_priority() + 1,
+            REMOTE_EXPLORER_NAME,
+        );
+
+        Ok(())
+    }
+
+    /// displays a single `MenuItem` and returning the inner space where we can draw detail
+    fn display_menu_item(
+        menu_item: &MenuItem,
+        render_frame: &mut Frame,
+        area: Rect,
+        is_highlighted: bool,
+    ) -> Rect {
+        let item_style = if is_highlighted {
+            Style::default().fg(Color::LightGreen)
+        } else {
+            Style::default()
+        };
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .style(item_style)
+            .title(format!("[{}]", String::from(menu_item)));
+
+        let block_inner = block.inner(area);
+
+        render_frame.render_widget(block, area);
+
+        block_inner
+    }
+
+    /// sends a request of a certain type to the server
+    fn send_request(&self, request_type: RequestType) -> Result<(), Box<dyn Error>> {
+        if self.config.github_token.is_none() {
+            log::info!("Github token not set.");
+            return Ok(());
         }
 
-        let mut new_panels = BTreeMap::new();
-        let mut new_panel_names = HashMap::new();
-        let mut index: u8 = 0;
+        if self.active_remote.is_none() {
+            log::info!("No active remote set for repository.");
+            return Ok(());
+        }
 
-        let panel_names_copy = self.panel_names.clone();
+        let repo_regex = Regex::new(":(?<owner>.*)/(?<name>.*).git$")?;
+        let active_remote = self
+            .active_remote
+            .as_ref()
+            .expect("active_remote already checked");
+        let Some(repo_captures) = repo_regex.captures(active_remote) else {
+            return Err("Couldn't capture owner or name for request".into());
+        };
 
-        while !self.panels.is_empty() {
-            let (old_priority, panel) = self.panels.pop_first().expect("self.panels is not empty");
+        let variables = VariableStore::new(
+            repo_captures["name"].to_string(),
+            repo_captures["owner"].to_string(),
+        );
 
-            new_panels.insert(index, panel);
+        let cloned_sender = self.data_clone_sender.clone();
+        let cloned_access_token = self
+            .config
+            .github_token
+            .clone()
+            .expect("Access token already checked");
 
-            for (panel_name, &priority) in &panel_names_copy {
-                if priority == old_priority {
-                    new_panel_names.insert(panel_name.clone(), index);
-                }
+        thread::spawn(move || match Runtime::new() {
+            Ok(runtime) => {
+                runtime.block_on(async {
+                    match request_type {
+                        RequestType::IssuesRequest => match perform_issues_query(
+                            cloned_sender,
+                            variables.into(),
+                            cloned_access_token,
+                        )
+                        .await
+                        {
+                            Err(error) => {
+                                log::error!("issues_query returned an error. {}", error)
+                            }
+                            _ => (),
+                        },
+
+                        RequestType::PullRequestsRequest => match perform_pull_requests_query(
+                            cloned_sender,
+                            variables.into(),
+                            cloned_access_token,
+                        )
+                        .await
+                        {
+                            Err(error) => {
+                                log::error!("pull_requests_query returned an error. {}", error)
+                            }
+                            _ => (),
+                        },
+                        RequestType::ProjectsRequest => match perform_projects_query(
+                            cloned_sender,
+                            variables.into(),
+                            cloned_access_token,
+                        )
+                        .await
+                        {
+                            Err(error) => {
+                                log::error!("projects_query returned an error. {}", error)
+                            }
+                            _ => (),
+                        },
+                    }
+                });
             }
+            Err(error) => log::error!("Couldn't spawn runtime for issues_query. {}", error),
+        });
+        Ok(())
+    }
 
-            index += 1;
+    /// selects the next `MenuItem` in rotation
+    fn select_next_menu_item(&mut self) {
+        match self.active_menu_item {
+            MenuItem::Issues => self.select_pull_requests_view(),
+            MenuItem::PullRequests => self.select_projects_view(),
+            MenuItem::Projects => self.select_issues_view(),
         }
+    }
 
-        self.panels = new_panels;
-        self.panel_names = new_panel_names;
+    /// selects the previous `MenuItem` in rotation
+    fn select_previous_menu_item(&mut self) {
+        match self.active_menu_item {
+            MenuItem::Issues => self.select_projects_view(),
+            MenuItem::PullRequests => self.select_issues_view(),
+            MenuItem::Projects => self.select_pull_requests_view(),
+        }
+    }
+
+    /// selects the issues view, refetching the data for it
+    fn select_issues_view(&mut self) {
+        self.active_menu_item = MenuItem::Issues;
+        self.ui_stack.select_panel(ISSUES_VIEW_NAME);
+
+        match self.send_request(RequestType::IssuesRequest) {
+            Err(error) => {
+                log::error!("{} occured during sending of issue request", error);
+            }
+            _ => (),
+        }
+    }
+
+    /// selects the pull requests view, refetching the data for it
+    fn select_pull_requests_view(&mut self) {
+        self.active_menu_item = MenuItem::PullRequests;
+        self.ui_stack.select_panel(PULL_REQUESTS_VIEW_NAME);
+
+        match self.send_request(RequestType::PullRequestsRequest) {
+            Err(error) => {
+                log::error!("{} occured during sending of pull requests request", error);
+            }
+            _ => (),
+        }
+    }
+
+    /// selects the projects view, refetching the data for it
+    fn select_projects_view(&mut self) {
+        self.active_menu_item = MenuItem::Projects;
+        self.ui_stack.select_panel(PROJECTS_VIEW_NAME);
+
+        match self.send_request(RequestType::ProjectsRequest) {
+            Err(error) => {
+                log::error!("{} occured during sending of projects request", error);
+            }
+            _ => (),
+        }
     }
 }
 
-/// creates a centered floating layout in the drawable area
-fn create_floating_layout(width: u16, height: u16, base_chunk: Rect) -> Rect {
-    let y_offset = 50 - height / 2;
-    let x_offset = 50 - width / 2;
+impl PanelElement for Ui {
+    fn handle_input(&mut self, key_event: KeyEvent) -> bool {
+        for (panel, _) in self.ui_stack.iter_rev() {
+            if panel.handle_input(key_event) {
+                return true;
+            }
+        }
 
-    let vertical_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(y_offset),
-            Constraint::Percentage(height),
-            Constraint::Percentage(y_offset),
-        ])
-        .split(base_chunk);
+        match key_event {
+            KeyEvent {
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => match key_event.code {
+                KeyCode::Char('q') => self.quit = true,
+                KeyCode::Tab => self.select_next_menu_item(),
+                _ => (),
+            },
+            KeyEvent {
+                modifiers: KeyModifiers::SHIFT,
+                ..
+            } => match key_event.code {
+                KeyCode::BackTab => self.select_previous_menu_item(),
+                KeyCode::Char('I') => self.select_issues_view(),
+                KeyCode::Char('P') => self.select_pull_requests_view(),
+                KeyCode::Char('R') => self.select_projects_view(),
+                _ => (),
+            },
+            KeyEvent {
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => match key_event.code {
+                KeyCode::Char('n') => match self.open_remote_explorer() {
+                    Err(error) => log::error!("{} occured while opening remote explorer!", error),
+                    _ => (),
+                },
+                _ => (),
+            },
+            _ => (),
+        }
 
-    let horizontal_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(x_offset),
-            Constraint::Percentage(width),
-            Constraint::Percentage(x_offset),
-        ])
-        .split(vertical_layout[1]);
+        false
+    }
 
-    horizontal_layout[1]
+    fn render(&mut self, render_frame: &mut Frame, rect: Rect) -> () {
+        render_frame.render_widget(Clear, rect);
+
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(rect);
+
+        let menu_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Percentage(34), // Issues
+                Constraint::Percentage(33), // PullRequests
+                Constraint::Percentage(33), // Projects
+            ])
+            .split(horizontal_chunks[0]);
+
+        let mut inner_menu_chunks: Vec<Rect> = vec![];
+
+        let menu_items = MenuItem::to_main_menu_points();
+        for (item, chunk) in menu_items.iter().zip(menu_chunks.iter()) {
+            let is_highlighted = *item == self.active_menu_item;
+            let inner_chunk = Self::display_menu_item(item, render_frame, *chunk, is_highlighted);
+            inner_menu_chunks.push(inner_chunk);
+        }
+
+        let detail_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
+            .split(horizontal_chunks[1]);
+
+        let mut inner_detail_chunks: Vec<Rect> = vec![];
+        for chunk in detail_chunks.iter() {
+            let block = Block::default().borders(Borders::ALL);
+
+            let block_inner = block.inner(*chunk);
+
+            render_frame.render_widget(block, *chunk);
+            inner_detail_chunks.push(block_inner);
+        }
+
+        let panel_layout = HashMap::from([
+            (ISSUES_VIEW_NAME, inner_menu_chunks[ISSUES_LAYOUT_POSITION]), // Issues
+            (
+                PULL_REQUESTS_VIEW_NAME,
+                inner_menu_chunks[PULL_REQUESTS_LAYOUT_POSITION],
+            ), // Pull Requests
+            (
+                PROJECTS_VIEW_NAME,
+                inner_menu_chunks[PROJECTS_LAYOUT_POSITION],
+            ), // Projects
+            (REMOTE_EXPLORER_NAME, rect),
+            ("", inner_detail_chunks[DETAIL_LAYOUT_POSITION]),
+            ("", inner_detail_chunks[STATUS_LAYOUT_POSITION]),
+        ]);
+
+        for (panel, name) in self.ui_stack.iter() {
+            panel.render(render_frame, panel_layout[name.as_str()]);
+        }
+    }
+
+    fn tick(&mut self) -> () {
+        // try_recv does not block the current thread which is nice here because we don't
+        // have a tick signal recv() would block the thread until we receive a message from
+        // the sender I am ignoring the error here but that may not be best practice
+        if let Ok(data) = self.data_receiver.try_recv() {
+            self.data_response_data.push(data);
+        }
+
+        let mut should_refresh_issues = false;
+
+        for data in self.data_response_data.drain(..) {
+            match data {
+                RepoData::IssuesData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        if let Some((panel, _)) =
+                            self.ui_stack.get_panel_mut_ref_by_name(ISSUES_VIEW_NAME)
+                        {
+                            panel.update(Box::new(repo_data));
+                        } else {
+                            self.ui_stack.add_panel(
+                                create_issues_view(
+                                    repo_data,
+                                    self.config.clone(),
+                                    self.data_clone_sender.clone(),
+                                ),
+                                top_priority,
+                                ISSUES_VIEW_NAME,
+                            );
+                        }
+                    }
+                    None => {
+                        log::debug!("Couldn't display issues since there was no repository in response data")
+                    }
+                },
+                RepoData::PullRequestsData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        if let Some((panel, _)) = self
+                            .ui_stack
+                            .get_panel_mut_ref_by_name(PULL_REQUESTS_VIEW_NAME)
+                        {
+                            panel.update(Box::new(repo_data));
+                        } else {
+                            self.ui_stack.add_panel(
+                                create_pull_requests_view(
+                                    repo_data,
+                                    self.config.clone(),
+                                    self.data_clone_sender.clone(),
+                                ),
+                                top_priority,
+                                PULL_REQUESTS_VIEW_NAME,
+                            );
+                        }
+                    }
+                    None => {
+                        log::debug!("Couldn't display issues since there was no repository in response data")
+                    }
+                },
+                RepoData::ProjectsData(data) => match data.repository {
+                    Some(repo_data) => {
+                        let top_priority = self.ui_stack.get_highest_priority() + 1;
+                        if let Some((panel, _)) =
+                            self.ui_stack.get_panel_mut_ref_by_name(PROJECTS_VIEW_NAME)
+                        {
+                            panel.update(Box::new(repo_data));
+                        } else {
+                            self.ui_stack.add_panel(
+                                create_projects_view(
+                                    repo_data,
+                                    self.config.clone(),
+                                    self.data_clone_sender.clone(),
+                                ),
+                                top_priority,
+                                PROJECTS_VIEW_NAME,
+                            );
+                        }
+                    }
+                    None => {
+                        log::debug!("Couldn't display issues since there was no repository in response data")
+                    }
+                },
+                RepoData::ActiveRemoteData(remote) => {
+                    match self
+                        .state
+                        .set_repository_data(self.repo_root.clone(), remote.clone())
+                    {
+                        Err(error) => {
+                            log::error!("{} occured during setting of active remote", error)
+                        }
+                        _ => (),
+                    }
+                    self.active_remote = Some(remote);
+
+                    should_refresh_issues = true;
+                }
+                RepoData::IssueInspectData(_data) => (),
+                RepoData::PullRequestInspectData(_data) => (),
+                RepoData::ProjectInspectData(_data) => (),
+            }
+        }
+
+        if should_refresh_issues {
+            self.request_all();
+        }
+
+        let mut priorities_to_quit: Vec<u8> = vec![];
+
+        for (priority, (panel, _)) in self.ui_stack.iter_with_priority() {
+            if panel.wants_to_quit() {
+                priorities_to_quit.push(*priority);
+            }
+        }
+
+        for priority in priorities_to_quit.iter() {
+            self.ui_stack.remove_panel(*priority);
+        }
+    }
+
+    fn update(&mut self, _data: Box<dyn std::any::Any>) -> bool {
+        false
+    }
+
+    fn wants_to_quit(&self) -> bool {
+        self.quit
+    }
+
+    fn set_focus(&mut self, _state: bool) -> bool {
+        false
+    }
 }

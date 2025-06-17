@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::{tab_menu::RepoData, PanelElement};
+use super::{PanelElement, RepoData};
 
 /// issues view name for the `UiStack`
 pub const ISSUES_VIEW_NAME: &str = "issues_view";

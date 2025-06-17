@@ -14,11 +14,10 @@ use ratatui::{
 
 use crate::{
     config::{self, git::get_git_remote_url_for_name},
-    ui::create_floating_layout,
-    ui::PanelElement,
+    ui::{self, PanelElement},
 };
 
-use super::tab_menu::RepoData;
+use super::RepoData;
 
 /// remote explorer name for `UiStack`
 pub const REMOTE_EXPLORER_NAME: &str = "remote_explorer";
@@ -217,7 +216,7 @@ impl PanelElement for RemoteExplorer {
     fn render(&mut self, render_frame: &mut Frame, rect: Rect) {
         let remotes = self.items.clone();
 
-        let floating_area = create_floating_layout(20, 20, rect);
+        let floating_area = ui::layouts::create_floating_layout(20, 20, rect);
         render_frame.render_widget(Clear, floating_area);
 
         let display_rect = List::new(remotes)

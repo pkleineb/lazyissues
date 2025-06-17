@@ -59,7 +59,7 @@ pub mod github {
 
     use crate::ui::{
         list_view::{ListCollection, ListItem},
-        tab_menu::RepoData,
+        RepoData,
     };
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
