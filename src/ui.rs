@@ -38,7 +38,7 @@ impl UiStack {
         }
     }
 
-    /// adds a `PanelElenment` to the `UiStack`
+    /// adds a `PanelElement` to the `UiStack`
     pub fn add_panel<P: PanelElement + 'static>(
         &mut self,
         panel: P,
