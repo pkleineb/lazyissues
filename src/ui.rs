@@ -388,7 +388,7 @@ impl Ui {
                     }
                 });
             }
-            Err(error) => log::error!("Couldn't spawn runtime for issues_query. {}", error),
+            Err(error) => log::error!("Couldn't spawn runtime for {request_type:?}. {error}"),
         });
         Ok(())
     }
