@@ -1,18 +1,3 @@
-/// macro for implementing into type <T> for a the VariableStore struct, for passing Variables to
-/// the graphql queries
-macro_rules! impl_Into_T_for_VariableStore {
-    ($module:ident) => {
-        impl From<VariableStore> for $module::Variables {
-            fn from(variable_store: VariableStore) -> $module::Variables {
-                $module::Variables {
-                    repo_name: variable_store.repo_name,
-                    repo_owner: variable_store.repo_owner,
-                }
-            }
-        }
-    };
-}
-
 /// implements ListCollection for a type <T>, for accessing each individual, issue, pull request or
 /// project
 macro_rules! impl_ListCollection_for_T {
@@ -52,6 +37,7 @@ macro_rules! impl_ListCollection_for_T {
 }
 
 pub mod github {
+    use regex::Regex;
     use std::{error::Error, sync::mpsc};
 
     use graphql_client::{GraphQLQuery, Response};
@@ -65,24 +51,49 @@ pub mod github {
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
 
     /// `VariablesStore` stores all relevant variables for a graphql query
+    #[derive(Default)]
     pub struct VariableStore {
-        repo_name: String,
-        repo_owner: String,
+        pub repo_name: String,
+        pub repo_owner: String,
+        pub issue_number: i32,
     }
 
     impl VariableStore {
-        /// creates a new variables store
-        pub fn new(repo_name: String, repo_owner: String) -> Self {
-            Self {
-                repo_name,
-                repo_owner,
-            }
+        pub fn default_with_repo_info(active_remote: &str) -> Option<Self> {
+            let repo_regex = match Regex::new(":(?<owner>.*)/(?<name>.*).git$") {
+                Ok(reg) => reg,
+                Err(error) => {
+                    log::debug!("Couldn't create regex because of error: {error}");
+                    return None;
+                }
+            };
+
+            let Some(repo_captures) = repo_regex.captures(active_remote) else {
+                return None;
+            };
+
+            Some(
+                Self::default()
+                    .repo_name(repo_captures["name"].to_string())
+                    .repo_owner(repo_captures["owner"].to_string()),
+            )
+        }
+
+        pub fn repo_name(mut self, repo_name: String) -> Self {
+            self.repo_name = repo_name;
+            self
+        }
+
+        pub fn repo_owner(mut self, repo_owner: String) -> Self {
+            self.repo_owner = repo_owner;
+            self
+        }
+
+        pub fn issue_number(mut self, issue_number: i32) -> Self {
+            self.issue_number = issue_number;
+            self
         }
     }
-
-    impl_Into_T_for_VariableStore!(issues_query);
-    impl_Into_T_for_VariableStore!(pull_requests_query);
-    impl_Into_T_for_VariableStore!(projects_query);
 
     // generic type declaration for graphql requests so that graphql_client does know what type to
     // downcast how and to what
@@ -110,9 +121,13 @@ pub mod github {
     /// performs the issue query sending it to the server
     pub async fn perform_issues_query(
         response_sender: mpsc::Sender<RepoData>,
-        variables: issues_query::Variables,
+        variable_store: VariableStore,
         access_token: String,
     ) -> Result<(), Box<dyn Error>> {
+        let variables = issues_query::Variables {
+            repo_name: variable_store.repo_name,
+            repo_owner: variable_store.repo_owner,
+        };
         let request_body = IssuesQuery::build_query(variables);
 
         let client = reqwest::Client::builder()
@@ -159,9 +174,13 @@ pub mod github {
     /// performs the pull request query sending it to the server
     pub async fn perform_pull_requests_query(
         response_sender: mpsc::Sender<RepoData>,
-        variables: pull_requests_query::Variables,
+        variable_store: VariableStore,
         access_token: String,
     ) -> Result<(), Box<dyn Error>> {
+        let variables = pull_requests_query::Variables {
+            repo_name: variable_store.repo_name,
+            repo_owner: variable_store.repo_owner,
+        };
         let request_body = PullRequestsQuery::build_query(variables);
 
         let client = reqwest::Client::builder()
@@ -210,9 +229,13 @@ pub mod github {
     /// performs the projects query sending it to the server
     pub async fn perform_projects_query(
         response_sender: mpsc::Sender<RepoData>,
-        variables: projects_query::Variables,
+        variable_store: VariableStore,
         access_token: String,
     ) -> Result<(), Box<dyn Error>> {
+        let variables = projects_query::Variables {
+            repo_name: variable_store.repo_name,
+            repo_owner: variable_store.repo_owner,
+        };
         let request_body = ProjectsQuery::build_query(variables);
 
         let client = reqwest::Client::builder()
@@ -432,9 +455,14 @@ pub mod github {
     /// performs the `IssueDetailQuery` sending it to the server
     pub async fn perform_detail_issue_query(
         response_sender: mpsc::Sender<RepoData>,
-        variables: issue_detail_query::Variables,
+        variable_store: VariableStore,
         access_token: String,
     ) -> Result<(), Box<dyn Error>> {
+        let variables = issue_detail_query::Variables {
+            repo_name: variable_store.repo_name,
+            repo_owner: variable_store.repo_owner,
+            issue_number: 0,
+        };
         let request_body = IssueDetailQuery::build_query(variables);
 
         let client = reqwest::Client::builder()

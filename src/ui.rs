@@ -317,57 +317,42 @@ impl Ui {
 
     /// sends a request of a certain type to the server
     fn send_request(&self, request_type: RequestType) -> Result<(), Box<dyn Error>> {
-        if self.config.github_token.is_none() {
-            log::info!("Github token not set.");
+        let Some(cloned_access_token) = self.config.github_token.clone() else {
+            log::warn!("Github token not set.");
             return Ok(());
-        }
-
-        if self.active_remote.is_none() {
-            log::info!("No active remote set for repository.");
-            return Ok(());
-        }
-
-        let repo_regex = Regex::new(":(?<owner>.*)/(?<name>.*).git$")?;
-        let active_remote = self
-            .active_remote
-            .as_ref()
-            .expect("active_remote already checked");
-        let Some(repo_captures) = repo_regex.captures(active_remote) else {
-            return Err("Couldn't capture owner or name for request".into());
         };
 
-        let variables = VariableStore::new(
-            repo_captures["name"].to_string(),
-            repo_captures["owner"].to_string(),
-        );
+        let Some(ref active_remote) = self.active_remote else {
+            log::warn!("No active remote set for repository.");
+            return Ok(());
+        };
+
+        let variables = match VariableStore::default_with_repo_info(&active_remote) {
+            Some(variables) => variables,
+            None => {
+                log::warn!("Couldn't fetch variables for repository.");
+                return Ok(());
+            }
+        };
 
         let cloned_sender = self.data_clone_sender.clone();
-        let cloned_access_token = self
-            .config
-            .github_token
-            .clone()
-            .expect("Access token already checked");
 
         thread::spawn(move || match Runtime::new() {
             Ok(runtime) => {
                 runtime.block_on(async {
                     match request_type {
                         RequestType::Issues => {
-                            if let Err(error) = perform_issues_query(
-                                cloned_sender,
-                                variables.into(),
-                                cloned_access_token,
-                            )
-                            .await
+                            if let Err(error) =
+                                perform_issues_query(cloned_sender, variables, cloned_access_token)
+                                    .await
                             {
                                 log::error!("issues_query returned an error. {error}");
                             }
                         }
-
                         RequestType::PullRequests => {
                             if let Err(error) = perform_pull_requests_query(
                                 cloned_sender,
-                                variables.into(),
+                                variables,
                                 cloned_access_token,
                             )
                             .await
@@ -378,7 +363,7 @@ impl Ui {
                         RequestType::Projects => {
                             if let Err(error) = perform_projects_query(
                                 cloned_sender,
-                                variables.into(),
+                                variables,
                                 cloned_access_token,
                             )
                             .await
