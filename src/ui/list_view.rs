@@ -1,4 +1,4 @@
-use std::{cmp::max, sync::mpsc};
+use std::{cmp::max, rc::Rc, sync::mpsc};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::{PanelElement, RepoData};
+use super::{ItemDetailFunc, PanelElement, RepoData};
 
 /// issues view name for the `UiStack`
 pub const ISSUES_VIEW_NAME: &str = "issues_view";

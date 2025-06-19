@@ -42,7 +42,8 @@ macro_rules! impl_ListCollection_for_T {
 
 pub mod github {
     use regex::Regex;
-    use std::{error::Error, sync::mpsc};
+
+    use std::{error::Error, future::Future, pin::Pin, sync::mpsc};
 
     use graphql_client::{GraphQLQuery, Response};
     use reqwest::header;

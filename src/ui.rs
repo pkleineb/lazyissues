@@ -1,5 +1,9 @@
-use std::{any::Any, collections::HashMap, error::Error, path::PathBuf, sync::mpsc, thread};
+use std::{
+    any::Any, collections::HashMap, error::Error, future::Future, path::PathBuf, pin::Pin, rc::Rc,
+    sync::mpsc, thread,
+};
 
+use detail_view::{DetailListItem, DetailView, DETAIL_VIEW_NAME};
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Layout, Rect},
@@ -7,7 +11,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear},
     Frame,
 };
-use regex::Regex;
 use tokio::runtime::Runtime;
 
 use crate::{
