@@ -242,7 +242,7 @@ impl<T: ListCollection> PanelElement for ListView<T> {
         }
     }
 
-    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
+    fn update(&mut self, data: RepoData) -> bool {
         // try to construct the generic T from data received from the git remote
         if let Ok(collection) = T::from_repository_data(data) {
             self.collection = collection;

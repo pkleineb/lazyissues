@@ -240,7 +240,7 @@ impl PanelElement for RemoteExplorer {
 
     fn tick(&mut self) {}
 
-    fn update(&mut self, _data: Box<dyn std::any::Any>) -> bool {
+    fn update(&mut self, _data: RepoData) -> bool {
         false
     }
 

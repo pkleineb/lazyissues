@@ -55,7 +55,7 @@ pub trait PanelElement {
     fn tick(&mut self);
     /// updates the panel element with new data
     /// returns true if the update was successfull otherwise false
-    fn update(&mut self, data: Box<dyn Any>) -> bool;
+    fn update(&mut self, data: RepoData) -> bool;
     /// returns true if the panel wants to close. The caller should determine if closing the widget
     /// is enough
     fn wants_to_quit(&self) -> bool;
@@ -162,11 +162,22 @@ pub enum RepoData {
     PullRequests(pull_requests_query::ResponseData),
     Projects(projects_query::ResponseData),
 
-    IssueInspect(issue_detail_query::ResponseData),
-    PullRequestInspect(issue_detail_query::ResponseData),
-    ProjectInspect(issue_detail_query::ResponseData),
     ViewItemDetails(usize, ItemDetailFunc),
     ItemDetails(Box<dyn DetailListItem>),
+}
+
+impl RepoData {
+    /// returns the panel name of the corrensponding panel for the `RepoData`
+    fn to_panel_name(&self) -> &'static str {
+        match *self {
+            Self::ActiveRemote(_) => "",
+            Self::ViewItemDetails(_, _) => "",
+            Self::Issues(_) => ISSUES_VIEW_NAME,
+            Self::PullRequests(_) => PULL_REQUESTS_VIEW_NAME,
+            Self::Projects(_) => PROJECTS_VIEW_NAME,
+            Self::ItemDetails(_) => DETAIL_VIEW_NAME,
+        }
+    }
 }
 
 /// main widget which manages all other widgets
@@ -570,76 +581,6 @@ impl PanelElement for Ui {
 
         for data in self.data_response_data.drain(..) {
             match data {
-                RepoData::Issues(data) => match data.repository {
-                    Some(repo_data) => {
-                        let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        if let Some((panel, _)) =
-                            self.ui_stack.get_panel_mut_ref_by_name(ISSUES_VIEW_NAME)
-                        {
-                            panel.update(Box::new(repo_data));
-                        } else {
-                            self.ui_stack.add_panel(
-                                create_issues_view(
-                                    repo_data,
-                                    self.config.clone(),
-                                    self.data_clone_sender.clone(),
-                                ),
-                                top_priority,
-                                ISSUES_VIEW_NAME,
-                            );
-                        }
-                    }
-                    None => {
-                        log::debug!("Couldn't display issues since there was no repository in response data")
-                    }
-                },
-                RepoData::PullRequests(data) => match data.repository {
-                    Some(repo_data) => {
-                        let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        if let Some((panel, _)) = self
-                            .ui_stack
-                            .get_panel_mut_ref_by_name(PULL_REQUESTS_VIEW_NAME)
-                        {
-                            panel.update(Box::new(repo_data));
-                        } else {
-                            self.ui_stack.add_panel(
-                                create_pull_requests_view(
-                                    repo_data,
-                                    self.config.clone(),
-                                    self.data_clone_sender.clone(),
-                                ),
-                                top_priority,
-                                PULL_REQUESTS_VIEW_NAME,
-                            );
-                        }
-                    }
-                    None => {
-                        log::debug!("Couldn't display issues since there was no repository in response data")
-                    }
-                },
-                RepoData::Projects(data) => match data.repository {
-                    Some(repo_data) => {
-                        let top_priority = self.ui_stack.get_highest_priority() + 1;
-                        if let Some((panel, _)) =
-                            self.ui_stack.get_panel_mut_ref_by_name(PROJECTS_VIEW_NAME)
-                        {
-                            panel.update(Box::new(repo_data));
-                        } else {
-                            self.ui_stack.add_panel(
-                                create_projects_view(
-                                    repo_data,
-                                    self.config.clone(),
-                                    self.data_clone_sender.clone(),
-                                ),
-                                top_priority,
-                                PROJECTS_VIEW_NAME,
-                            );
-                        }
-                    }
-                    None => {
-                        log::debug!("Couldn't display issues since there was no repository in response data")
-                    }
-                },
                 RepoData::ActiveRemote(remote) => {
                     if let Err(error) = self
                         .state
@@ -651,13 +592,20 @@ impl PanelElement for Ui {
 
                     should_refresh_issues = true;
                 }
-                RepoData::IssueInspect(_data) => (),
-                RepoData::PullRequestInspect(_data) => (),
-                RepoData::ProjectInspect(_data) => (),
-            }
                 RepoData::ViewItemDetails(item_number, request_detail_func) => {
                     request_detail = Some((item_number, request_detail_func));
                 }
+                other => {
+                    if let Some((panel, _)) = self
+                        .ui_stack
+                        .get_panel_mut_ref_by_name(other.to_panel_name())
+                    {
+                        panel.update(other);
+                    }
+                    // might need to recreate the panel if it doesn't exist but idk if that is
+                    // needed the panels shouldn't quit anyways
+                }
+            };
         }
 
         if should_refresh_issues {
@@ -677,7 +625,7 @@ impl PanelElement for Ui {
         }
     }
 
-    fn update(&mut self, _data: Box<dyn std::any::Any>) -> bool {
+    fn update(&mut self, _data: RepoData) -> bool {
         false
     }
 

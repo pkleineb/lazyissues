@@ -36,16 +36,15 @@ impl PanelElement for DetailView {
         render_frame.render_widget(title_paragraph, rect);
     }
 
-    fn update(&mut self, data: Box<dyn std::any::Any>) -> bool {
-        match data.downcast::<Box<dyn DetailListItem>>() {
-            Ok(converted_data) => {
-                self.item = Some(*converted_data);
+    fn update(&mut self, data: RepoData) -> bool {
+        match data {
+            RepoData::ItemDetails(data) => {
+                self.item = Some(data);
                 true
             }
-            Err(other) => {
+            other => {
                 log::debug!(
-                    "Couldn't downcast to DetailListItem implementing type. Other value was: {:?}",
-                    other.type_id()
+                    "Received data wasn't of type RepoData::ItemDetails. Other value was: {other:?}",
                 );
                 false
             }
