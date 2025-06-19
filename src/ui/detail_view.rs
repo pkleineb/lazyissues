@@ -1,6 +1,6 @@
 use ratatui::widgets::Paragraph;
 
-use super::{list_view::ListItem, PanelElement};
+use super::{list_view::ListItem, PanelElement, RepoData};
 
 pub const DETAIL_VIEW_NAME: &str = "detail_view";
 
@@ -15,7 +15,7 @@ pub trait Comment: std::fmt::Debug {
     fn get_body(&self) -> &str;
 }
 
-pub trait DetailListItem: DetailItem + ListItem {}
+pub trait DetailListItem: DetailItem + ListItem + Send {}
 
 #[derive(Default)]
 pub struct DetailView {

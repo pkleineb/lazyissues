@@ -153,6 +153,12 @@ impl RequestType {
     }
 }
 
+pub type ItemDetailFunc = fn(
+    mpsc::Sender<RepoData>,
+    VariableStore,
+    String,
+) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>>;
+
 /// enum for data that can be reported about a repo
 #[derive(Debug)]
 pub enum RepoData {
@@ -578,6 +584,7 @@ impl PanelElement for Ui {
         }
 
         let mut should_refresh_issues = false;
+        let mut request_detail: Option<(usize, ItemDetailFunc)> = None;
 
         for data in self.data_response_data.drain(..) {
             match data {
@@ -610,6 +617,16 @@ impl PanelElement for Ui {
 
         if should_refresh_issues {
             self.request_all();
+        }
+
+        if let Some((item_number, request_detail_func)) = request_detail {
+            if let Err(error) =
+                self.send_request(RequestType::ViewDetail(item_number, request_detail_func))
+            {
+                log::error!(
+                    "While trying to send request to the server an error occured.\n{error}"
+                );
+            }
         }
 
         let mut priorities_to_quit: Vec<u8> = vec![];

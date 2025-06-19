@@ -1,7 +1,7 @@
 /// implements ListCollection for a type <T>, for accessing each individual, issue, pull request or
 /// project
 macro_rules! impl_ListCollection_for_T {
-    ($T:ty, $item_identifier:ident, $module:ident, $type:ident) => {
+    ($T:ty, $item_identifier:ident, $repo_data:ident, $detail_func:ident) => {
         impl ListCollection for $T {
             /// returns all items(issues, pull requests or projects) that are in the
             /// `ListCollection`
@@ -19,18 +19,22 @@ macro_rules! impl_ListCollection_for_T {
 
             /// tries to downcast some data into the correct Type <T> this is implemented for to
             /// build a new `ListCollection`
-            fn from_repository_data(
-                data: Box<dyn std::any::Any>,
-            ) -> Result<Self, Box<dyn std::error::Error>> {
-                match data.downcast::<$module::$type>() {
-                    Ok(repo) => Ok(Self::new(*repo)),
-                    Err(other) => Err(format!(
-                        "Couldn't downcast to {:?}. Other value was: {:?}",
-                        std::any::type_name::<$module::$type>(),
-                        other.type_id()
+            fn from_repository_data(data: RepoData) -> Result<Self, Box<dyn std::error::Error>> {
+                match data {
+                    RepoData::$repo_data(response_data) => match response_data.repository {
+                        Some(repo) => Ok(Self::new(repo)),
+                        None => Err("There was no repository data to display".into()),
+                    },
+                    other => Err(format!(
+                        "Received data wasn't of type RepoData::{:?}. Other value was: {other:?}",
+                        stringify!($repo_data),
                     )
                     .into()),
                 }
+            }
+
+            fn get_detail_func() -> ItemDetailFunc {
+                $detail_func
             }
         }
     };
@@ -44,8 +48,9 @@ pub mod github {
     use reqwest::header;
 
     use crate::ui::{
+        detail_view::{DetailItem, DetailListItem},
         list_view::{ListCollection, ListItem},
-        RepoData,
+        ItemDetailFunc, RepoData,
     };
 
     const GITHUB_GRAPHQL_ENDPOINT: &str = "https://api.github.com/graphql";
@@ -55,7 +60,7 @@ pub mod github {
     pub struct VariableStore {
         pub repo_name: String,
         pub repo_owner: String,
-        pub issue_number: i32,
+        pub issue_number: i64,
     }
 
     impl VariableStore {
@@ -68,9 +73,7 @@ pub mod github {
                 }
             };
 
-            let Some(repo_captures) = repo_regex.captures(active_remote) else {
-                return None;
-            };
+            let repo_captures = repo_regex.captures(active_remote)?;
 
             Some(
                 Self::default()
@@ -89,7 +92,7 @@ pub mod github {
             self
         }
 
-        pub fn issue_number(mut self, issue_number: i32) -> Self {
+        pub fn issue_number(mut self, issue_number: i64) -> Self {
             self.issue_number = issue_number;
             self
         }
@@ -325,8 +328,8 @@ pub mod github {
     impl_ListCollection_for_T!(
         IssuesCollection,
         issues,
-        issues_query,
-        IssuesQueryRepository
+        Issues,
+        perform_detail_issue_query_wrapper
     );
 
     impl ListItem for pull_requests_query::PullRequestsQueryRepositoryPullRequestsNodes {
@@ -385,8 +388,8 @@ pub mod github {
     impl_ListCollection_for_T!(
         PullRequestsCollection,
         pull_requests,
-        pull_requests_query,
-        PullRequestsQueryRepository
+        PullRequests,
+        perform_detail_issue_query_wrapper
     );
 
     impl ListItem for projects_query::ProjectsQueryRepositoryProjectsV2Nodes {
@@ -438,8 +441,8 @@ pub mod github {
     impl_ListCollection_for_T!(
         ProjectsCollection,
         projects_v2,
-        projects_query,
-        ProjectsQueryRepository
+        Projects,
+        perform_detail_issue_query_wrapper
     );
 
     /// `IssueDetailQuery` represents the detailed query about an issue like comments
@@ -461,7 +464,7 @@ pub mod github {
         let variables = issue_detail_query::Variables {
             repo_name: variable_store.repo_name,
             repo_owner: variable_store.repo_owner,
-            issue_number: 0,
+            issue_number: variable_store.issue_number,
         };
         let request_body = IssueDetailQuery::build_query(variables);
 
@@ -491,8 +494,77 @@ pub mod github {
         }
 
         match response_body.data {
-            Some(data) => Ok(response_sender.send(RepoData::IssueInspect(data))?),
+            Some(data) => match data.repository {
+                Some(repo) => match repo.issue {
+                    Some(issue) => {
+                        Ok(response_sender.send(RepoData::ItemDetails(Box::new(issue)))?)
+                    }
+                    None => Err("No issue in repository returned".into()),
+                },
+                None => Err("No repository returned for request".into()),
+            },
             None => Err("No response data returned.".into()),
         }
     }
+
+    // this is kinda shit ngl
+    type RequestReturnType = Result<(), Box<dyn Error>>;
+
+    pub fn perform_detail_issue_query_wrapper(
+        response_sender: mpsc::Sender<RepoData>,
+        variable_store: VariableStore,
+        access_token: String,
+    ) -> Pin<Box<dyn Future<Output = RequestReturnType> + Send>> {
+        Box::pin(perform_detail_issue_query(
+            response_sender,
+            variable_store,
+            access_token,
+        ))
+    }
+
+    impl ListItem for issue_detail_query::IssueDetailQueryRepositoryIssue {
+        fn get_title(&self) -> &str {
+            &self.title
+        }
+
+        fn is_closed(&self) -> bool {
+            self.closed
+        }
+
+        fn get_number(&self) -> i64 {
+            self.number
+        }
+
+        fn get_labels(&self) -> Vec<String> {
+            let mut result = Vec::new();
+            if let Some(labels) = &self.labels {
+                if let Some(nodes) = &labels.nodes {
+                    for label in nodes.iter().flatten() {
+                        result.push(label.name.clone());
+                    }
+                }
+            }
+            result
+        }
+
+        fn get_created_at(&self) -> &str {
+            &self.created_at.0
+        }
+
+        fn get_author_login(&self) -> Option<&str> {
+            self.author.as_ref().map(|author| &author.login[..])
+        }
+    }
+
+    impl DetailItem for issue_detail_query::IssueDetailQueryRepositoryIssue {
+        fn get_body(&self) -> &str {
+            &self.body
+        }
+
+        fn get_comments(&self) -> Vec<Box<dyn crate::ui::detail_view::Comment>> {
+            vec![]
+        }
+    }
+
+    impl DetailListItem for issue_detail_query::IssueDetailQueryRepositoryIssue {}
 }
