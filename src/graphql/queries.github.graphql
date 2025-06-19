@@ -65,12 +65,17 @@ query ProjectsQuery($repo_name: String!, $repo_owner: String!) {
 query IssueDetailQuery($repo_name: String!, $repo_owner: String!, $issue_number: Int!) {
   repository(name: $repo_name, owner: $repo_owner) {
     issue(number: $issue_number) {
+      title
+      closed
+      labels (first: 100){
+          nodes {
+            name
+          }
+      }
       author {
           __typename
         login
       }
-      state
-      title
       body
       createdAt
       number
