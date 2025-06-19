@@ -38,6 +38,7 @@ pub const DETAIL_LAYOUT_POSITION: usize = 0;
 /// sets the position of the status widget (position in the layout tuple)
 pub const STATUS_LAYOUT_POSITION: usize = 1;
 
+pub mod detail_view;
 pub mod layouts;
 pub mod list_view;
 pub mod remote_explorer;
