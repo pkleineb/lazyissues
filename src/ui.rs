@@ -174,7 +174,7 @@ pub struct Ui {
     // this might be a stupid way to store this
     data_response_data: Vec<RepoData>,
 
-    config: Config,
+    config: Rc<Config>,
     state: State,
 
     repo_root: PathBuf,
@@ -207,7 +207,7 @@ impl Ui {
             data_receiver,
             data_clone_sender,
             data_response_data: vec![],
-            config,
+            config: Rc::new(config),
             state,
             repo_root,
             active_remote,
@@ -243,7 +243,7 @@ impl Ui {
                 issues_query::IssuesQueryRepository {
                     issues: issues_query::IssuesQueryRepositoryIssues { nodes: None },
                 },
-                self.config.clone(),
+                Rc::clone(&self.config),
                 self.data_clone_sender.clone(),
             ),
             2,
@@ -257,7 +257,7 @@ impl Ui {
                         nodes: None,
                     },
                 },
-                self.config.clone(),
+                Rc::clone(&self.config),
                 self.data_clone_sender.clone(),
             ),
             0,
@@ -269,7 +269,7 @@ impl Ui {
                 projects_query::ProjectsQueryRepository {
                     projects_v2: projects_query::ProjectsQueryRepositoryProjectsV2 { nodes: None },
                 },
-                self.config.clone(),
+                Rc::clone(&self.config),
                 self.data_clone_sender.clone(),
             ),
             1,

@@ -120,7 +120,6 @@ pub struct TerminalApp {
     input_receiver: mpsc::Receiver<Event<CrossEvent>>,
 
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
-    config: Config,
 }
 
 impl TerminalApp {
@@ -131,18 +130,9 @@ impl TerminalApp {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
-        let config = match Config::from_config_file() {
-            Ok(config) => config,
-            Err(error) => {
-                log::error!("{}", error);
-                Config::default()
-            }
-        };
-
         Ok(Self {
             input_receiver,
             terminal,
-            config,
         })
     }
 
@@ -155,7 +145,15 @@ impl TerminalApp {
             return;
         }
 
-        let mut ui = match Ui::new(self.config.clone()) {
+        let config = match Config::from_config_file() {
+            Ok(config) => config,
+            Err(error) => {
+                log::error!("{}", error);
+                Config::default()
+            }
+        };
+
+        let mut ui = match Ui::new(config) {
             Ok(menu) => menu,
             Err(error) => {
                 log::error!("{} occured during creation of TabMenu.", error);

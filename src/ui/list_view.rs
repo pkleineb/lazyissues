@@ -59,7 +59,7 @@ pub struct ListView<T: ListCollection> {
     collection: T,
     item_amount: usize,
     selected_item: usize,
-    config: Config,
+    config: Rc<Config>,
 
     is_focused: bool,
 
@@ -69,6 +69,11 @@ pub struct ListView<T: ListCollection> {
 impl<T: ListCollection> ListView<T> {
     /// creates a new `ListView<T>` based on the ListCollection given
     pub fn new(collection: T, config: Config, data_sender_cloner: mpsc::Sender<RepoData>) -> Self {
+    pub fn new(
+        collection: T,
+        config: Rc<Config>,
+        data_sender_cloner: mpsc::Sender<RepoData>,
+    ) -> Self {
         let item_amount = collection.get_items().len();
         Self {
             collection,
@@ -273,7 +278,7 @@ impl<T: ListCollection> PanelElement for ListView<T> {
 /// quickly creates an widgets where you can view issues on
 pub fn create_issues_view(
     data: issues_query::IssuesQueryRepository,
-    config: Config,
+    config: Rc<Config>,
     data_sender: mpsc::Sender<RepoData>,
 ) -> impl PanelElement {
     let collection = IssuesCollection::new(data);
@@ -283,7 +288,7 @@ pub fn create_issues_view(
 /// quickly creates an widgets where you can view pull requests on
 pub fn create_pull_requests_view(
     data: pull_requests_query::PullRequestsQueryRepository,
-    config: Config,
+    config: Rc<Config>,
     data_sender: mpsc::Sender<RepoData>,
 ) -> impl PanelElement {
     let collection = PullRequestsCollection::new(data);
@@ -293,7 +298,7 @@ pub fn create_pull_requests_view(
 /// quickly creates an widgets where you can view projects on
 pub fn create_projects_view(
     data: projects_query::ProjectsQueryRepository,
-    config: Config,
+    config: Rc<Config>,
     data_sender: mpsc::Sender<RepoData>,
 ) -> impl PanelElement {
     let collection = ProjectsCollection::new(data);
