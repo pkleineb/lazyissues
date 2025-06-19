@@ -44,7 +44,7 @@ impl PanelElement for DetailView {
             }
             Err(other) => {
                 log::debug!(
-                    "Couldn't downcast to IntoDetailCollection implementing type. Other value was: {:?}",
+                    "Couldn't downcast to DetailListItem implementing type. Other value was: {:?}",
                     other.type_id()
                 );
                 false
