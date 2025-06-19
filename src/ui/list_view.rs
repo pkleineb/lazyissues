@@ -45,13 +45,14 @@ pub trait ListItem: std::fmt::Debug {
 /// trait for remote data to be used as a collection of `ListItem`s
 pub trait ListCollection {
     /// converts the data given to a `ListCollection` implementing struct
-    fn from_repository_data(
-        data: Box<dyn std::any::Any>,
-    ) -> Result<Self, Box<dyn std::error::Error>>
+    fn from_repository_data(data: RepoData) -> Result<Self, Box<dyn std::error::Error>>
     where
         Self: Sized;
     /// returns all items of the `ListCollection`
     fn get_items(&self) -> Vec<Box<dyn ListItem>>;
+
+    /// fetches the detail info for the specific type for displaying
+    fn get_detail_func() -> ItemDetailFunc;
 }
 
 /// displays `ListItem`s
@@ -63,12 +64,12 @@ pub struct ListView<T: ListCollection> {
 
     is_focused: bool,
 
+    changed_selected_item: bool,
     data_sender_cloner: mpsc::Sender<RepoData>,
 }
 
 impl<T: ListCollection> ListView<T> {
     /// creates a new `ListView<T>` based on the ListCollection given
-    pub fn new(collection: T, config: Config, data_sender_cloner: mpsc::Sender<RepoData>) -> Self {
     pub fn new(
         collection: T,
         config: Rc<Config>,
@@ -83,6 +84,7 @@ impl<T: ListCollection> ListView<T> {
 
             is_focused: false,
 
+            changed_selected_item: false,
             data_sender_cloner,
         }
     }
@@ -94,6 +96,8 @@ impl<T: ListCollection> ListView<T> {
         if self.selected_item >= self.item_amount {
             self.selected_item = 0;
         }
+
+        self.changed_selected_item = true;
     }
 
     /// selects the previous item, wrapping on the edges
@@ -104,6 +108,8 @@ impl<T: ListCollection> ListView<T> {
         } else {
             self.selected_item -= 1;
         }
+
+        self.changed_selected_item = true;
     }
 
     /// displays a singular item on it's asigned area
@@ -215,7 +221,17 @@ impl<T: ListCollection> PanelElement for ListView<T> {
         }
     }
 
-    fn tick(&mut self) {}
+    fn tick(&mut self) {
+        if self.changed_selected_item {
+            if let Err(error) = self.data_sender_cloner.send(RepoData::ViewItemDetails(
+                self.selected_item,
+                T::get_detail_func(),
+            )) {
+                log::error!("While sending view detail request to ui experienced error: {error}");
+            }
+            self.changed_selected_item = false;
+        }
+    }
 
     fn render(&mut self, render_frame: &mut Frame, rect: Rect) {
         render_frame.render_widget(Clear, rect);
@@ -257,6 +273,8 @@ impl<T: ListCollection> PanelElement for ListView<T> {
             } else {
                 0
             };
+
+            self.changed_selected_item = true;
 
             return true;
         }
