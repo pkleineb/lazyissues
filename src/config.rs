@@ -359,18 +359,10 @@ impl Config {
 
 /// `State` struct storing application state like currently prefered repository endpoint for a
 /// specific repository
+#[derive(Default)]
 pub struct State {
     //               <local repo path, active remote>
     repository_state: HashMap<PathBuf, String>,
-}
-
-impl Default for State {
-    /// creates a new instance of `State` using default values
-    fn default() -> Self {
-        Self {
-            repository_state: HashMap::new(),
-        }
-    }
 }
 
 impl State {
