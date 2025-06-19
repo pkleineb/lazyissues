@@ -128,6 +128,7 @@ pub enum RequestType {
     Issues,
     PullRequests,
     Projects,
+    ViewDetail(usize, ItemDetailFunc),
 }
 
 impl RequestType {
@@ -147,11 +148,13 @@ impl RequestType {
             RequestType::Issues => "IssuesRequest",
             RequestType::PullRequests => "PullRequestsRequest",
             RequestType::Projects => "ProjectsRequest",
+            RequestType::ViewDetail(_, _) => "ViewDetail",
         }
     }
 }
 
 /// enum for data that can be reported about a repo
+#[derive(Debug)]
 pub enum RepoData {
     ActiveRemote(String),
 
@@ -162,6 +165,8 @@ pub enum RepoData {
     IssueInspect(issue_detail_query::ResponseData),
     PullRequestInspect(issue_detail_query::ResponseData),
     ProjectInspect(issue_detail_query::ResponseData),
+    ViewItemDetails(usize, ItemDetailFunc),
+    ItemDetails(Box<dyn DetailListItem>),
 }
 
 /// main widget which manages all other widgets
@@ -276,6 +281,9 @@ impl Ui {
             PROJECTS_VIEW_NAME,
         );
 
+        self.ui_stack
+            .add_panel(DetailView::default(), 3, DETAIL_VIEW_NAME);
+
         self.ui_stack.select_panel(ISSUES_VIEW_NAME);
     }
 
@@ -327,7 +335,7 @@ impl Ui {
             return Ok(());
         };
 
-        let variables = match VariableStore::default_with_repo_info(&active_remote) {
+        let mut variables = match VariableStore::default_with_repo_info(active_remote) {
             Some(variables) => variables,
             None => {
                 log::warn!("Couldn't fetch variables for repository.");
@@ -369,6 +377,17 @@ impl Ui {
                             .await
                             {
                                 log::error!("projects_query returned an error. {error}");
+                            }
+                        }
+                        RequestType::ViewDetail(item_number, request_detail_func) => {
+                            variables = variables.issue_number(item_number.try_into().unwrap_or_default());
+                            if let Err(error) = request_detail_func(
+                                cloned_sender,
+                                variables,
+                                cloned_access_token,
+                            ).await
+                            {
+                                log::error!("While viewing details about an item an error occured.\n{error}");
                             }
                         }
                     }
@@ -523,7 +542,10 @@ impl PanelElement for Ui {
                 inner_menu_chunks[PROJECTS_LAYOUT_POSITION],
             ), // Projects
             (REMOTE_EXPLORER_NAME, rect),
-            ("", inner_detail_chunks[DETAIL_LAYOUT_POSITION]),
+            (
+                DETAIL_VIEW_NAME,
+                inner_detail_chunks[DETAIL_LAYOUT_POSITION],
+            ), // Detail view
             ("", inner_detail_chunks[STATUS_LAYOUT_POSITION]),
         ]);
 
@@ -533,6 +555,10 @@ impl PanelElement for Ui {
     }
 
     fn tick(&mut self) {
+        for (panel, _) in self.ui_stack.iter_rev() {
+            panel.tick();
+        }
+
         // try_recv does not block the current thread which is nice here because we don't
         // have a tick signal recv() would block the thread until we receive a message from
         // the sender I am ignoring the error here but that may not be best practice
@@ -629,6 +655,9 @@ impl PanelElement for Ui {
                 RepoData::PullRequestInspect(_data) => (),
                 RepoData::ProjectInspect(_data) => (),
             }
+                RepoData::ViewItemDetails(item_number, request_detail_func) => {
+                    request_detail = Some((item_number, request_detail_func));
+                }
         }
 
         if should_refresh_issues {
