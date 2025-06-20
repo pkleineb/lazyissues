@@ -15,13 +15,23 @@ pub const DETAIL_VIEW_NAME: &str = "detail_view";
 
 /// trait implementing some special functions for a detailed item
 pub trait DetailItem: std::fmt::Debug {
+    /// returns the number of comments on a DetailItem(this is at the max 100 since the request
+    /// only allows 100 fetches here)
+    fn get_num_comments(&self) -> usize;
+
+    /// returns all fetched comments on the trait
     fn get_comments(&self) -> Vec<Box<dyn Comment>>;
 }
 
 /// trait for comments
 pub trait Comment: std::fmt::Debug {
+    /// returns the login of the author of the `Comment`
     fn get_author_login(&self) -> Option<&str>;
+
+    /// returns the time the `Comment` got created
     fn get_created_at(&self) -> &str;
+
+    /// returns the body(text) of the `Comment`
     fn get_body(&self) -> &str;
 }
 
