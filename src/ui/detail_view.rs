@@ -1,4 +1,12 @@
-use ratatui::widgets::Paragraph;
+use std::{fmt::format, ops::Deref};
+
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
+    Frame,
+};
 
 use super::{list_view::ListItem, PanelElement, RepoData};
 
@@ -29,6 +37,42 @@ pub struct DetailView {
     is_focused: bool,
 }
 
+impl DetailView {
+    fn render_title(item: &dyn DetailListItem, render_frame: &mut Frame, area: Rect) {
+        let title = item.get_title();
+        let number_text = format!(" #{}", item.get_number());
+        let vertical_split = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Length(1)])
+            .split(area);
+
+        let centered = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Length(
+                    (title.len() + number_text.len())
+                        .try_into()
+                        .unwrap_or_default(),
+                ),
+                Constraint::Fill(1),
+            ])
+            .split(vertical_split[0]);
+
+        let title_paragraph = Paragraph::new(Line::from(vec![
+            Span::styled(title, Style::default().add_modifier(Modifier::UNDERLINED)),
+            Span::styled(number_text, Style::default().fg(Color::DarkGray)),
+        ]));
+        render_frame.render_widget(title_paragraph, centered[1]);
+
+        let spacer_bar = Block::default()
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(Color::Gray));
+
+        render_frame.render_widget(spacer_bar, vertical_split[1]);
+    }
+}
+
 impl PanelElement for DetailView {
     fn tick(&mut self) {}
 
@@ -37,8 +81,7 @@ impl PanelElement for DetailView {
             return;
         };
 
-        let title_paragraph = Paragraph::new(unwrapped_item.get_title());
-        render_frame.render_widget(title_paragraph, rect);
+        Self::render_title(unwrapped_item.deref(), render_frame, rect);
     }
 
     fn update(&mut self, data: RepoData) -> bool {
