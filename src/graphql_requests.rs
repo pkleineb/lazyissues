@@ -49,7 +49,7 @@ pub mod github {
     use reqwest::header;
 
     use crate::ui::{
-        detail_view::{DetailItem, DetailListItem},
+        detail_view::{Comment, DetailItem, DetailListItem},
         list_view::{ListCollection, ListItem},
         ItemDetailFunc, RepoData,
     };
@@ -558,12 +558,22 @@ pub mod github {
     }
 
     impl DetailItem for issue_detail_query::IssueDetailQueryRepositoryIssue {
+        fn get_comments(&self) -> Vec<Box<dyn crate::ui::detail_view::Comment>> {
+            vec![]
+        }
+    }
+
+    impl Comment for issue_detail_query::IssueDetailQueryRepositoryIssue {
         fn get_body(&self) -> &str {
             &self.body
         }
 
-        fn get_comments(&self) -> Vec<Box<dyn crate::ui::detail_view::Comment>> {
-            vec![]
+        fn get_created_at(&self) -> &str {
+            &self.created_at.0
+        }
+
+        fn get_author_login(&self) -> Option<&str> {
+            self.author.as_ref().map(|author| &author.login[..])
         }
     }
 

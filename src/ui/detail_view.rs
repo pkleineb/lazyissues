@@ -15,7 +15,6 @@ pub const DETAIL_VIEW_NAME: &str = "detail_view";
 
 /// trait implementing some special functions for a detailed item
 pub trait DetailItem: std::fmt::Debug {
-    fn get_body(&self) -> &str;
     fn get_comments(&self) -> Vec<Box<dyn Comment>>;
 }
 
@@ -27,7 +26,7 @@ pub trait Comment: std::fmt::Debug {
 }
 
 /// super trait, combining Detail and ListItem
-pub trait DetailListItem: DetailItem + ListItem + Send {}
+pub trait DetailListItem: DetailItem + ListItem + Comment + Send {}
 
 /// Widget for displaying details about an item(issue, pr or project)
 #[derive(Default)]
