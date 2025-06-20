@@ -2,21 +2,26 @@ use ratatui::widgets::Paragraph;
 
 use super::{list_view::ListItem, PanelElement, RepoData};
 
+/// detail view name for `UiStack`
 pub const DETAIL_VIEW_NAME: &str = "detail_view";
 
+/// trait implementing some special functions for a detailed item
 pub trait DetailItem: std::fmt::Debug {
     fn get_body(&self) -> &str;
     fn get_comments(&self) -> Vec<Box<dyn Comment>>;
 }
 
+/// trait for comments
 pub trait Comment: std::fmt::Debug {
     fn get_author_login(&self) -> Option<&str>;
     fn get_created_at(&self) -> &str;
     fn get_body(&self) -> &str;
 }
 
+/// super trait, combining Detail and ListItem
 pub trait DetailListItem: DetailItem + ListItem + Send {}
 
+/// Widget for displaying details about an item(issue, pr or project)
 #[derive(Default)]
 pub struct DetailView {
     item: Option<Box<dyn DetailListItem>>,
