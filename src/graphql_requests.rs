@@ -565,7 +565,6 @@ pub mod github {
                 .flatten()
                 .flatten()
                 .flat_map(|edge| &edge.node)
-                .map(|node| node as &dyn Comment)
                 .count()
         }
 
