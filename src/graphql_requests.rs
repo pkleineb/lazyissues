@@ -558,8 +558,28 @@ pub mod github {
     }
 
     impl DetailItem for issue_detail_query::IssueDetailQueryRepositoryIssue {
-        fn get_comments(&self) -> Vec<Box<dyn crate::ui::detail_view::Comment>> {
-            vec![]
+        fn get_num_comments(&self) -> usize {
+            self.comments
+                .edges
+                .iter()
+                .flatten()
+                .flatten()
+                .flat_map(|edge| &edge.node)
+                .map(|node| node as &dyn Comment)
+                .count()
+        }
+
+        fn get_comments(&self) -> Vec<&dyn Comment> {
+            let comments: Vec<_> = self
+                .comments
+                .edges
+                .iter()
+                .flatten()
+                .flatten()
+                .flat_map(|edge| &edge.node)
+                .map(|node| node as &dyn Comment)
+                .collect();
+            comments
         }
     }
 
@@ -578,4 +598,18 @@ pub mod github {
     }
 
     impl DetailListItem for issue_detail_query::IssueDetailQueryRepositoryIssue {}
+
+    impl Comment for issue_detail_query::IssueDetailQueryRepositoryIssueCommentsEdgesNode {
+        fn get_author_login(&self) -> Option<&str> {
+            self.author.as_ref().map(|author| &author.login[..])
+        }
+
+        fn get_created_at(&self) -> &str {
+            &self.created_at.0
+        }
+
+        fn get_body(&self) -> &str {
+            &self.body
+        }
+    }
 }
