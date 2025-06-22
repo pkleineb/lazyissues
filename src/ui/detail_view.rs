@@ -3,7 +3,7 @@ use std::ops::Deref;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
@@ -103,9 +103,21 @@ impl DetailView {
         let title_paragraph = Paragraph::new(Span::styled(title, Style::default()));
         render_frame.render_widget(title_paragraph, layout[0]);
 
-        let body_paragraph = Paragraph::new(Span::styled(item.get_body(), Style::default()))
+        let body_paragraph = Paragraph::new(Text::styled(item.get_body(), Style::default()))
             .wrap(Wrap { trim: false });
         render_frame.render_widget(body_paragraph, layout[1]);
+    }
+
+    fn render_action_graph(area: Rect, is_last_action: bool, render_frame: &mut Frame) {
+        let height = area.height;
+        let width = area.width;
+
+        let bottom_corner = if is_last_action { "╰" } else { "├" };
+        let line = Paragraph::new(Text::styled(
+            "│\n".repeat((height - 1).into()) + bottom_corner + &"─".repeat((width - 1).into()),
+            Style::default().fg(Color::DarkGray),
+        ));
+        render_frame.render_widget(line, area);
     }
 
     fn calculate_body_height(text: &str, width: usize) -> usize {
@@ -152,28 +164,78 @@ impl PanelElement for DetailView {
             ])
             .split(main_layout[1]);
 
-        let mut comments = unwrapped_item.get_comments();
-        comments.insert(0, unwrapped_item.deref() as &dyn Comment);
+        let main_comment_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(
+                    Self::calculate_body_height(
+                        unwrapped_item.get_body(),
+                        (padded_width + 2).into(),
+                    ) as u16
+                        + 1
+                        + 2,
+                ),
+                Constraint::Fill(1),
+            ])
+            .split(center_comment_layout[1]);
 
-        let constraints: Vec<_> = comments
+        Self::render_body(unwrapped_item.deref(), render_frame, main_comment_layout[0]);
+
+        let sub_comment_spacing_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(5),
+                Constraint::Length(5),
+                Constraint::Fill(1),
+            ])
+            .split(main_comment_layout[1]);
+
+        let comments = unwrapped_item.get_comments();
+        let mut connector_constraints: Vec<Constraint> = vec![];
+        let mut last_height = 0;
+
+        let comment_constraints: Vec<_> = comments
             .iter()
             .map(|comment| {
-                Constraint::Length(
-                    Self::calculate_body_height(comment.get_body(), (padded_width + 2).into()) // +2 for the borders left and right
+                let height = Self::calculate_body_height(comment.get_body(), (padded_width + 2 + 10).into()) // +2 for the borders left and right +10 for the padding left for action graph
                         as u16
                         + 1  // +1 for the title where created at and author goes and 
-                        + 2, // +2 for the borders up and down
-                )
+                        + 2; // +2 for the borders up and down
+                if last_height == 0 {
+                    // last_height == 0 only when there was no comment before
+                    connector_constraints.push(Constraint::Length(2)); // 2 places the line on the
+                                                                       // height of the "title" of the comment(where author and created at get
+                                                                       // displayed)
+                } else {
+                    connector_constraints.push(Constraint::Length(last_height));
+                }
+                last_height = height + 1;
+                Constraint::Length(height)
             })
             .collect();
 
-        let comment_layout = Layout::default()
+        let action_graph_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(constraints)
-            .spacing(1)
-            .split(center_comment_layout[1]);
+            .constraints(connector_constraints)
+            .split(sub_comment_spacing_layout[1]);
 
-        for (comment, area) in comments.iter().zip(comment_layout.iter()) {
+        let sub_comment_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(comment_constraints)
+            .spacing(1)
+            .split(sub_comment_spacing_layout[2]);
+
+        for (index, ((comment, area), action_graph_area)) in comments
+            .iter()
+            .zip(sub_comment_layout.iter())
+            .zip(action_graph_layout.iter())
+            .enumerate()
+        {
+            Self::render_action_graph(
+                *action_graph_area,
+                index == action_graph_layout.len() - 1,
+                render_frame,
+            );
             Self::render_body(*comment, render_frame, *area);
         }
     }
