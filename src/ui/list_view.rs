@@ -224,7 +224,10 @@ impl<T: ListCollection> PanelElement for ListView<T> {
     fn tick(&mut self) {
         if self.changed_selected_item {
             if let Err(error) = self.data_sender_cloner.send(RepoData::ViewItemDetails(
-                self.selected_item,
+                self.collection.get_items()[self.selected_item]
+                    .get_number()
+                    .try_into()
+                    .unwrap_or_default(),
                 T::get_detail_func(),
             )) {
                 log::error!("While sending view detail request to ui experienced error: {error}");
