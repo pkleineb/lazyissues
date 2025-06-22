@@ -1,4 +1,4 @@
-use std::{fmt::format, ops::Deref};
+use std::ops::Deref;
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -133,7 +133,7 @@ impl PanelElement for DetailView {
             return;
         };
 
-        let padding = 10;
+        let padding = 5;
         let padded_width = rect.width - 2 * padding;
 
         let main_layout = Layout::default()
