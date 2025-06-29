@@ -48,6 +48,7 @@ pub struct DetailView {
 }
 
 impl DetailView {
+    /// renders the title of a `DetailListItem` trait item
     fn render_title(item: &dyn DetailListItem, render_frame: &mut Frame, area: Rect) {
         let title = item.get_title();
         let number_text = format!(" #{}", item.get_number());
@@ -82,6 +83,7 @@ impl DetailView {
         render_frame.render_widget(spacer_bar, vertical_split[1]);
     }
 
+    /// renders the body of a `Comment` trait item
     fn render_body(item: &dyn Comment, render_frame: &mut Frame, area: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
@@ -109,6 +111,8 @@ impl DetailView {
         render_frame.render_widget(body_paragraph, layout[1]);
     }
 
+    /// creates the title line of a `Comment` trait item as a seperate line for use in
+    /// `ratatui::widgets::List`
     fn create_comment_title_line(
         item: &dyn Comment,
         action_graph_width: usize,
@@ -137,6 +141,9 @@ impl DetailView {
 
         line
     }
+
+    /// creates a body of a `Comment` trait item as a seperate lines for use in
+    /// `ratatui::widgets::List`
     fn create_comment_body(
         item: &dyn Comment,
         action_graph_width: usize,
@@ -183,6 +190,8 @@ impl DetailView {
         body_lines
     }
 
+    /// creates the upper border of a `Comment` trait item as a seperate line for use in
+    /// `ratatui::widgets::List`
     fn create_comment_upper_border(
         action_graph_width: usize,
         comment_width: usize,
@@ -201,6 +210,9 @@ impl DetailView {
 
         line
     }
+
+    /// creates the lower border of a `Comment` trait item as a seperate line for use in
+    /// `ratatui::widgets::List`
     fn create_comment_lower_border(
         action_graph_width: usize,
         comment_width: usize,
@@ -223,6 +235,7 @@ impl DetailView {
         line
     }
 
+    /// calculates the height in lines of a given text within a given width
     fn calculate_body_height(text: &str, width: usize) -> usize {
         let mut lines = 0;
 
@@ -239,6 +252,7 @@ impl DetailView {
         lines
     }
 
+    /// calculates the padding of a given text so that `text.len() + padding == width`
     fn calculate_padding_for_text(text: &str, width: usize) -> usize {
         if text.len() > width {
             return 0;
