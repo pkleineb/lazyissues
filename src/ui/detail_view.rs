@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListState, Paragraph, Wrap},
     Frame,
 };
 
@@ -44,6 +44,7 @@ pub struct DetailView {
     item: Option<Box<dyn DetailListItem>>,
 
     is_focused: bool,
+    comment_list_state: ListState,
 }
 
 impl DetailView {
@@ -108,16 +109,118 @@ impl DetailView {
         render_frame.render_widget(body_paragraph, layout[1]);
     }
 
-    fn render_action_graph(area: Rect, is_last_action: bool, render_frame: &mut Frame) {
-        let height = area.height;
-        let width = area.width;
+    fn create_comment_title_line(
+        item: &dyn Comment,
+        action_graph_width: usize,
+        comment_width: usize,
+        is_last_action: bool,
+    ) -> Line<'_> {
+        let title = format!(
+            "{} commented on {}",
+            item.get_author_login().unwrap_or_default(),
+            item.get_created_at()
+        );
+        let title_connection = if is_last_action { "╰" } else { "├" };
+        let title_padding = Self::calculate_padding_for_text(&title, comment_width - 2); // -2 for the borders
 
-        let bottom_corner = if is_last_action { "╰" } else { "├" };
-        let line = Paragraph::new(Text::styled(
-            "│\n".repeat((height - 1).into()) + bottom_corner + &"─".repeat((width - 1).into()),
-            Style::default().fg(Color::DarkGray),
-        ));
-        render_frame.render_widget(line, area);
+        let line = Line::from(vec![
+            Span::styled(title_connection, Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                "─".repeat(action_graph_width - 1), // -1 since we draw the graph first
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::from("│"),
+            Span::styled(title, Style::default()),
+            Span::from(" ".repeat(title_padding)),
+            Span::from("│"),
+        ]);
+
+        line
+    }
+    fn create_comment_body(
+        item: &dyn Comment,
+        action_graph_width: usize,
+        comment_width: usize,
+        is_last_action: bool,
+    ) -> Vec<Line<'_>> {
+        let mut body_lines: Vec<Line> = vec![];
+
+        let lines: Vec<_> = item
+            .get_body()
+            .lines()
+            .flat_map(|paragraph| {
+                let length = paragraph.len();
+
+                let mut real_lines = vec![];
+                let mut i = 0;
+                while i + comment_width < length {
+                    real_lines.push(&paragraph[i..i + comment_width]);
+                    i += comment_width;
+                }
+                real_lines.push(&paragraph[i..]);
+
+                real_lines
+            })
+            .collect();
+
+        let action_graph = if is_last_action { " " } else { "│" };
+
+        for line in lines {
+            // -2 for the borders
+            let line_padding = Self::calculate_padding_for_text(line, comment_width - 2);
+
+            body_lines.push(Line::from(vec![
+                Span::styled(action_graph, Style::default().fg(Color::DarkGray)),
+                Span::from(" ".repeat(action_graph_width - 1)), // -1 since we draw the
+                // graph first
+                Span::from("│"),
+                Span::styled(line, Style::default()),
+                Span::from(" ".repeat(line_padding)),
+                Span::from("│"),
+            ]));
+        }
+
+        body_lines
+    }
+
+    fn create_comment_upper_border(
+        action_graph_width: usize,
+        comment_width: usize,
+    ) -> Line<'static> {
+        let line = Line::from(vec![
+            Span::styled("│", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " ".repeat(action_graph_width - 1), // -1 since we draw the graph first
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::from("╭"),
+            Span::styled("─".repeat(comment_width - 2), Style::default()), // -2 for the
+            // corners
+            Span::from("╮"),
+        ]);
+
+        line
+    }
+    fn create_comment_lower_border(
+        action_graph_width: usize,
+        comment_width: usize,
+        is_last_action: bool,
+    ) -> Line<'static> {
+        let action_graph = if is_last_action { " " } else { "│" };
+
+        let line = Line::from(vec![
+            Span::styled(action_graph, Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                " ".repeat(action_graph_width - 1), // -1 since we draw the graph first
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::from("╰"),
+            Span::styled("─".repeat(comment_width - 2), Style::default()), // -2 for the
+            // corners
+            Span::from("╯"),
+        ]);
+
+        line
     }
 
     fn calculate_body_height(text: &str, width: usize) -> usize {
@@ -134,6 +237,14 @@ impl DetailView {
         }
 
         lines
+    }
+
+    fn calculate_padding_for_text(text: &str, width: usize) -> usize {
+        if text.len() > width {
+            return 0;
+        }
+
+        width - text.len()
     }
 }
 
@@ -181,63 +292,44 @@ impl PanelElement for DetailView {
 
         Self::render_body(unwrapped_item.deref(), render_frame, main_comment_layout[0]);
 
-        let sub_comment_spacing_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(5),
-                Constraint::Length(5),
-                Constraint::Fill(1),
-            ])
-            .split(main_comment_layout[1]);
-
+        let action_graph_width = 5;
         let comments = unwrapped_item.get_comments();
-        let mut connector_constraints: Vec<Constraint> = vec![];
-        let mut last_height = 0;
+        let comment_width = main_comment_layout[1].width - action_graph_width;
 
-        let comment_constraints: Vec<_> = comments
-            .iter()
-            .map(|comment| {
-                let height = Self::calculate_body_height(comment.get_body(), (padded_width + 2 + 10).into()) // +2 for the borders left and right +10 for the padding left for action graph
-                        as u16
-                        + 1  // +1 for the title where created at and author goes and 
-                        + 2; // +2 for the borders up and down
-                if last_height == 0 {
-                    // last_height == 0 only when there was no comment before
-                    connector_constraints.push(Constraint::Length(2)); // 2 places the line on the
-                                                                       // height of the "title" of the comment(where author and created at get
-                                                                       // displayed)
-                } else {
-                    connector_constraints.push(Constraint::Length(last_height));
-                }
-                last_height = height + 1;
-                Constraint::Length(height)
-            })
-            .collect();
-
-        let action_graph_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(connector_constraints)
-            .split(sub_comment_spacing_layout[1]);
-
-        let sub_comment_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(comment_constraints)
-            .spacing(1)
-            .split(sub_comment_spacing_layout[2]);
-
-        for (index, ((comment, area), action_graph_area)) in comments
-            .iter()
-            .zip(sub_comment_layout.iter())
-            .zip(action_graph_layout.iter())
-            .enumerate()
-        {
-            Self::render_action_graph(
-                *action_graph_area,
-                index == action_graph_layout.len() - 1,
-                render_frame,
+        let comment_list = List::new(comments.iter().enumerate().flat_map(|(i, comment)| {
+            let is_last_action = i == comments.len() - 1;
+            let upper_border =
+                Self::create_comment_upper_border(action_graph_width.into(), comment_width.into());
+            let title_line = Self::create_comment_title_line(
+                *comment,
+                action_graph_width.into(),
+                comment_width.into(),
+                is_last_action,
             );
-            Self::render_body(*comment, render_frame, *area);
-        }
+            let mut body_lines = Self::create_comment_body(
+                *comment,
+                action_graph_width.into(),
+                comment_width.into(),
+                is_last_action,
+            );
+            let lower_border = Self::create_comment_lower_border(
+                action_graph_width.into(),
+                comment_width.into(),
+                is_last_action,
+            );
+
+            let mut result = vec![upper_border, title_line];
+            result.append(&mut body_lines);
+            result.push(lower_border);
+
+            result
+        }));
+
+        render_frame.render_stateful_widget(
+            comment_list,
+            main_comment_layout[1],
+            &mut self.comment_list_state,
+        );
     }
 
     fn update(&mut self, data: RepoData) -> bool {
