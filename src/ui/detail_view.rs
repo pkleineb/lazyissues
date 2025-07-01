@@ -11,6 +11,18 @@ use ratatui::{
 
 use super::{list_view::ListItem, PanelElement, RepoData};
 
+#[derive(PartialEq)]
+enum ScrollDirection {
+    Up,
+    Down,
+}
+
+impl Default for ScrollDirection {
+    fn default() -> Self {
+        Self::Up
+    }
+}
+
 /// detail view name for `UiStack`
 pub const DETAIL_VIEW_NAME: &str = "detail_view";
 
@@ -46,9 +58,35 @@ pub struct DetailView {
 
     is_focused: bool,
     comment_list_state: ListState,
+    draw_height: usize,
+    last_scroll_direction: ScrollDirection,
 }
 
 impl DetailView {
+    fn select_next_item(&mut self) {
+        if self.last_scroll_direction == ScrollDirection::Down {
+            self.comment_list_state.select_next();
+        } else {
+            let selected_index = self.comment_list_state.selected().unwrap_or_default();
+
+            self.comment_list_state
+                .select(Some(selected_index + self.draw_height + 1));
+            self.last_scroll_direction = ScrollDirection::Down;
+        }
+    }
+
+    fn select_previous_item(&mut self) {
+        if self.last_scroll_direction == ScrollDirection::Up {
+            self.comment_list_state.select_previous();
+        } else {
+            let selected_index = self.comment_list_state.selected().unwrap_or_default();
+
+            self.comment_list_state
+                .select(Some(selected_index - self.draw_height - 1));
+            self.last_scroll_direction = ScrollDirection::Up;
+        }
+    }
+
     /// renders the title of a `DetailListItem` trait item
     fn render_title(item: &dyn DetailListItem, render_frame: &mut Frame, area: Rect) {
         let title = item.get_title();
@@ -340,6 +378,8 @@ impl PanelElement for DetailView {
             result
         }));
 
+        self.draw_height = main_comment_layout[1].height as usize;
+
         render_frame.render_stateful_widget(
             comment_list,
             main_comment_layout[1],
@@ -374,15 +414,11 @@ impl PanelElement for DetailView {
                 ..
             } => match key_event.code {
                 KeyCode::Char('j') => {
-                    log::debug!("selecting next");
-                    self.comment_list_state.select_next();
-                    log::debug!("list_state: {:?}", self.comment_list_state);
+                    self.select_next_item();
                     true
                 }
                 KeyCode::Char('k') => {
-                    log::debug!("selecting previous");
-                    self.comment_list_state.select_previous();
-                    log::debug!("list_state: {:?}", self.comment_list_state);
+                    self.select_previous_item();
                     true
                 }
                 _ => false,
