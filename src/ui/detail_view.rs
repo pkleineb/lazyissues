@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
@@ -367,7 +368,27 @@ impl PanelElement for DetailView {
     }
 
     fn handle_input(&mut self, key_event: ratatui::crossterm::event::KeyEvent) -> bool {
-        false
+        match key_event {
+            KeyEvent {
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => match key_event.code {
+                KeyCode::Char('j') => {
+                    log::debug!("selecting next");
+                    self.comment_list_state.select_next();
+                    log::debug!("list_state: {:?}", self.comment_list_state);
+                    true
+                }
+                KeyCode::Char('k') => {
+                    log::debug!("selecting previous");
+                    self.comment_list_state.select_previous();
+                    log::debug!("list_state: {:?}", self.comment_list_state);
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     fn wants_to_quit(&self) -> bool {
