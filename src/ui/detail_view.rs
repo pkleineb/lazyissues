@@ -2,12 +2,14 @@ use std::ops::Deref;
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Flex, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListState, Paragraph, Wrap},
     Frame,
 };
+
+use crate::config::Config;
 
 use super::{list_view::ListItem, PanelElement, RepoData};
 
@@ -60,6 +62,8 @@ pub struct DetailView {
     comment_list_state: ListState,
     draw_height: usize,
     last_scroll_direction: ScrollDirection,
+
+    config: Config,
 }
 
 impl DetailView {
@@ -88,38 +92,70 @@ impl DetailView {
     }
 
     /// renders the title of a `DetailListItem` trait item
-    fn render_title(item: &dyn DetailListItem, render_frame: &mut Frame, area: Rect) {
-        let title = item.get_title();
-        let number_text = format!(" #{}", item.get_number());
+    fn render_title(&self, item: &dyn DetailListItem, render_frame: &mut Frame, area: Rect) {
+        let status_style = if item.is_closed() {
+            Style::default().fg(Color::Red)
+        } else {
+            Style::default().fg(Color::Green)
+        };
+        let status = if item.is_closed() { "✓" } else { "○" };
+        let item_number = item.get_number();
+        let item_title = item.get_title();
+
+        let title = format!("[{status}] #{item_number} - {item_title}");
+
         let vertical_split = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Length(1)])
             .split(area);
 
-        let centered = Layout::default()
+        let margin = 3;
+
+        let title_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
+                Constraint::Length(margin),
+                Constraint::Length(title.len().try_into().unwrap_or_default()),
                 Constraint::Fill(1),
-                Constraint::Length(
-                    (title.len() + number_text.len())
-                        .try_into()
-                        .unwrap_or_default(),
-                ),
-                Constraint::Fill(1),
+                Constraint::Min(0),
+                Constraint::Length(margin),
             ])
             .split(vertical_split[0]);
 
-        let title_paragraph = Paragraph::new(Line::from(vec![
-            Span::styled(title, Style::default().add_modifier(Modifier::UNDERLINED)),
-            Span::styled(number_text, Style::default().fg(Color::DarkGray)),
-        ]));
-        render_frame.render_widget(title_paragraph, centered[1]);
+        let title_paragraph = Paragraph::new(Line::from(vec![Span::styled(title, status_style)]));
+        render_frame.render_widget(title_paragraph, title_layout[1]);
 
         let spacer_bar = Block::default()
             .borders(Borders::TOP)
             .border_style(Style::default().fg(Color::Gray));
 
         render_frame.render_widget(spacer_bar, vertical_split[1]);
+
+        let labels = item.get_labels();
+        if !labels.is_empty() {
+            let mut tags: Vec<Paragraph> = vec![];
+            let mut constraints: Vec<Constraint> = vec![];
+
+            for label in labels {
+                let label_fmt = format!("[{label}]");
+                constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
+                tags.push(Paragraph::new(Span::styled(
+                    label_fmt,
+                    self.config.get_tag_color(&label),
+                )));
+            }
+
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(constraints)
+                .flex(Flex::End)
+                .spacing(1)
+                .split(title_layout[3]);
+
+            for (tag, chunk) in tags.iter().zip(chunks.iter()) {
+                render_frame.render_widget(tag, *chunk);
+            }
+        }
     }
 
     /// renders the body of a `Comment` trait item
@@ -317,7 +353,7 @@ impl PanelElement for DetailView {
             .constraints([Constraint::Length(2), Constraint::Fill(1)])
             .split(rect);
 
-        Self::render_title(unwrapped_item.deref(), render_frame, main_layout[0]);
+        self.render_title(unwrapped_item.deref(), render_frame, main_layout[0]);
 
         let center_comment_layout = Layout::default()
             .direction(Direction::Horizontal)
