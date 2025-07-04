@@ -301,8 +301,11 @@ impl Ui {
             PROJECTS_VIEW_NAME,
         );
 
-        self.ui_stack
-            .add_panel(DetailView::default(), 3, DETAIL_VIEW_NAME);
+        self.ui_stack.add_panel(
+            DetailView::new(Rc::clone(&self.config)),
+            3,
+            DETAIL_VIEW_NAME,
+        );
 
         self.ui_stack.select_panel(ISSUES_VIEW_NAME);
     }

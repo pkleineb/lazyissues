@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{ops::Deref, rc::Rc};
 
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
@@ -63,10 +63,17 @@ pub struct DetailView {
     draw_height: usize,
     last_scroll_direction: ScrollDirection,
 
-    config: Config,
+    config: Rc<Config>,
 }
 
 impl DetailView {
+    pub fn new(config: Rc<Config>) -> Self {
+        Self {
+            config,
+            ..Default::default()
+        }
+    }
+
     fn select_next_item(&mut self) {
         if self.last_scroll_direction == ScrollDirection::Down {
             self.comment_list_state.select_next();
