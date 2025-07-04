@@ -42,3 +42,9 @@ tags {
     documentation "10"
 }
 ```
+
+### time_format
+`time_format` declares a format in which to display the timestamps of issue, pr's, projects and comments on them. It takes any valid time format as a string. The default one is displayed down below.
+```kdl
+time_format "%H:%M %d.%m.%Y"
+```
