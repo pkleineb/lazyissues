@@ -9,7 +9,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::config::Config;
+use crate::{config::Config, graphql_requests::github::types::DateTime};
 
 use super::{list_view::ListItem, PanelElement, RepoData};
 
@@ -44,7 +44,7 @@ pub trait Comment: std::fmt::Debug {
     fn get_author_login(&self) -> Option<&str>;
 
     /// returns the time the `Comment` got created
-    fn get_created_at(&self) -> &str;
+    fn get_created_at(&self) -> &DateTime;
 
     /// returns the body(text) of the `Comment`
     fn get_body(&self) -> &str;
@@ -159,7 +159,7 @@ impl DetailView {
     }
 
     /// renders the body of a `Comment` trait item
-    fn render_body(item: &dyn Comment, render_frame: &mut Frame, area: Rect) {
+    fn render_body(&self, item: &dyn Comment, render_frame: &mut Frame, area: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Gray));
@@ -175,7 +175,7 @@ impl DetailView {
         let title = format!(
             "{} commented on {}",
             item.get_author_login().unwrap_or_default(),
-            item.get_created_at()
+            item.get_created_at().to_str(&self.config.time_fmt)
         );
 
         let title_paragraph = Paragraph::new(Span::styled(title, Style::default()));
@@ -188,16 +188,17 @@ impl DetailView {
 
     /// creates the title line of a `Comment` trait item as a seperate line for use in
     /// `ratatui::widgets::List`
-    fn create_comment_title_line(
-        item: &dyn Comment,
+    fn create_comment_title_line<'a>(
+        item: &'a dyn Comment,
+        time_fmt: &'a str,
         action_graph_width: usize,
         comment_width: usize,
         is_last_action: bool,
-    ) -> Line<'_> {
+    ) -> Line<'a> {
         let title = format!(
             "{} commented on {}",
             item.get_author_login().unwrap_or_default(),
-            item.get_created_at()
+            item.get_created_at().to_str(time_fmt)
         );
         let title_connection = if is_last_action { "╰" } else { "├" };
         let title_padding = Self::calculate_padding_for_text(&title, comment_width - 2); // -2 for the borders
@@ -379,11 +380,13 @@ impl PanelElement for DetailView {
             ])
             .split(center_comment_layout[1]);
 
-        Self::render_body(unwrapped_item.deref(), render_frame, main_comment_layout[0]);
+        self.render_body(unwrapped_item.deref(), render_frame, main_comment_layout[0]);
 
         let action_graph_width = 5;
         let comments = unwrapped_item.get_comments();
         let comment_width = main_comment_layout[1].width - action_graph_width;
+
+        self.draw_height = main_comment_layout[1].height as usize;
 
         let comment_list = List::new(comments.iter().enumerate().flat_map(|(i, comment)| {
             let is_last_action = i == comments.len() - 1;
@@ -391,6 +394,7 @@ impl PanelElement for DetailView {
                 Self::create_comment_upper_border(action_graph_width.into(), comment_width.into());
             let title_line = Self::create_comment_title_line(
                 *comment,
+                &self.config.time_fmt,
                 action_graph_width.into(),
                 comment_width.into(),
                 is_last_action,
@@ -413,8 +417,6 @@ impl PanelElement for DetailView {
 
             result
         }));
-
-        self.draw_height = main_comment_layout[1].height as usize;
 
         render_frame.render_stateful_widget(
             comment_list,

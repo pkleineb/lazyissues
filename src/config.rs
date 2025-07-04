@@ -140,6 +140,8 @@ pub struct Config {
 
     credential_attempts: u64,
     credential_timeout: u64,
+
+    pub time_fmt: String,
 }
 
 impl Default for Config {
@@ -167,6 +169,8 @@ impl Default for Config {
 
             credential_attempts: 4,
             credential_timeout: 50,
+
+            time_fmt: "%H:%M %d.%m.%Y".to_string(),
         }
     }
 }

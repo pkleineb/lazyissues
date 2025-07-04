@@ -42,6 +42,7 @@ macro_rules! impl_ListCollection_for_T {
 
 pub mod github {
     use regex::Regex;
+    use types::DateTime;
 
     use std::{error::Error, future::Future, pin::Pin, sync::mpsc};
 
@@ -102,13 +103,20 @@ pub mod github {
     // generic type declaration for graphql requests so that graphql_client does know what type to
     // downcast how and to what
     pub mod types {
+        use chrono::Utc;
         use serde::{Deserialize, Serialize};
 
         #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
         pub struct User(pub String);
 
         #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-        pub struct DateTime(pub String);
+        pub struct DateTime(chrono::DateTime<Utc>);
+
+        impl DateTime {
+            pub fn to_str(&self, fmt: &str) -> String {
+                self.0.format(fmt).to_string()
+            }
+        }
     }
 
     /// `IssuesQuery` represents the github issues query for quering all (first 100) issues in a
@@ -295,8 +303,8 @@ pub mod github {
         }
 
         /// gets the timestamp when the issue got created
-        fn get_created_at(&self) -> &str {
-            &self.created_at.0
+        fn get_created_at(&self) -> &DateTime {
+            &self.created_at
         }
 
         /// gets all labels of an issue
@@ -355,8 +363,8 @@ pub mod github {
         }
 
         /// gets the timestamp when the pull request was created
-        fn get_created_at(&self) -> &str {
-            &self.created_at.0
+        fn get_created_at(&self) -> &DateTime {
+            &self.created_at
         }
 
         /// gets all asigned labels for that pull request
@@ -415,8 +423,8 @@ pub mod github {
         }
 
         /// gets the timestamp when the project got created
-        fn get_created_at(&self) -> &str {
-            &self.created_at.0
+        fn get_created_at(&self) -> &DateTime {
+            &self.created_at
         }
 
         /// gets the labels of the project. Since projects don't have labels we return an empty
@@ -548,8 +556,8 @@ pub mod github {
             result
         }
 
-        fn get_created_at(&self) -> &str {
-            &self.created_at.0
+        fn get_created_at(&self) -> &DateTime {
+            &self.created_at
         }
 
         fn get_author_login(&self) -> Option<&str> {
@@ -587,8 +595,8 @@ pub mod github {
             &self.body
         }
 
-        fn get_created_at(&self) -> &str {
-            &self.created_at.0
+        fn get_created_at(&self) -> &DateTime {
+            &self.created_at
         }
 
         fn get_author_login(&self) -> Option<&str> {
@@ -603,8 +611,8 @@ pub mod github {
             self.author.as_ref().map(|author| &author.login[..])
         }
 
-        fn get_created_at(&self) -> &str {
-            &self.created_at.0
+        fn get_created_at(&self) -> &DateTime {
+            &self.created_at
         }
 
         fn get_body(&self) -> &str {

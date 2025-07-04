@@ -12,8 +12,8 @@ use ratatui::{
 use crate::{
     config::Config,
     graphql_requests::github::{
-        issues_query, projects_query, pull_requests_query, IssuesCollection, ProjectsCollection,
-        PullRequestsCollection,
+        issues_query, projects_query, pull_requests_query, types::DateTime, IssuesCollection,
+        ProjectsCollection, PullRequestsCollection,
     },
 };
 
@@ -37,7 +37,7 @@ pub trait ListItem: std::fmt::Debug {
     /// returns the author login(username) of that item
     fn get_author_login(&self) -> Option<&str>;
     /// returns the timestamp of creation of that item
-    fn get_created_at(&self) -> &str;
+    fn get_created_at(&self) -> &DateTime;
     /// returns all labels of that item
     fn get_labels(&self) -> Vec<String>;
 }
@@ -142,7 +142,7 @@ impl<T: ListCollection> ListView<T> {
 
         let title = format!("[{status}] #{item_number} - {item_title}");
 
-        let created_at = item.get_created_at();
+        let created_at = item.get_created_at().to_str(&self.config.time_fmt);
         let author_name = item.get_author_login().unwrap_or("");
         let lower_issue_info = format!("{author_name} @ {created_at}");
 
