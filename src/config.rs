@@ -141,7 +141,7 @@ pub struct Config {
     credential_attempts: u64,
     credential_timeout: u64,
 
-    pub time_fmt: String,
+    time_fmt: String,
 }
 
 impl Default for Config {
@@ -242,6 +242,11 @@ impl Config {
                 "tags" => {
                     self.read_tag_node(node);
                 }
+                "time_format" => {
+                    self.time_fmt = get_first_entry_as_string!(node)
+                        .unwrap_or_default()
+                        .to_string();
+                }
                 _ => {
                     log::info!("Option: {} is not a recognized option", option_name);
                 }
@@ -275,6 +280,10 @@ impl Config {
                 },
             );
         }
+    }
+
+    pub fn get_datetime_fmt(&self) -> &str {
+        &self.time_fmt
     }
 
     /// returns a color for a given tag. If the tag is not found return White

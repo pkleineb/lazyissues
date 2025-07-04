@@ -182,7 +182,7 @@ impl DetailView {
         let title = format!(
             "{} commented on {}",
             item.get_author_login().unwrap_or_default(),
-            item.get_created_at().to_str(&self.config.time_fmt)
+            item.get_created_at().to_str(self.config.get_datetime_fmt())
         );
 
         let title_paragraph = Paragraph::new(Span::styled(title, Style::default()));
@@ -401,7 +401,7 @@ impl PanelElement for DetailView {
                 Self::create_comment_upper_border(action_graph_width.into(), comment_width.into());
             let title_line = Self::create_comment_title_line(
                 *comment,
-                &self.config.time_fmt,
+                self.config.get_datetime_fmt(),
                 action_graph_width.into(),
                 comment_width.into(),
                 is_last_action,

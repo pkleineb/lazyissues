@@ -142,7 +142,7 @@ impl<T: ListCollection> ListView<T> {
 
         let title = format!("[{status}] #{item_number} - {item_title}");
 
-        let created_at = item.get_created_at().to_str(&self.config.time_fmt);
+        let created_at = item.get_created_at().to_str(self.config.get_datetime_fmt());
         let author_name = item.get_author_login().unwrap_or("");
         let lower_issue_info = format!("{author_name} @ {created_at}");
 
