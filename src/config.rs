@@ -126,6 +126,45 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
+enum ConfigOption {
+    GithubTokenPath,
+    GitlabTokenPath,
+    GiteaTokenPath,
+    CredentialsAttempts,
+    CredentialsTimeout,
+    Tags,
+    TimeFormat,
+}
+
+impl From<&ConfigOption> for &str {
+    fn from(value: &ConfigOption) -> &'static str {
+        match value {
+            ConfigOption::GithubTokenPath => "github_token_path",
+            ConfigOption::GitlabTokenPath => "gitlab_token_path",
+            ConfigOption::GiteaTokenPath => "gitea_token_path",
+            ConfigOption::CredentialsAttempts => "credentials_attempts",
+            ConfigOption::CredentialsTimeout => "credentials_timeout",
+            ConfigOption::Tags => "tags",
+            ConfigOption::TimeFormat => "time_format",
+        }
+    }
+}
+
+impl ConfigOption {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "github_token_path" => Some(Self::GithubTokenPath),
+            "gitlab_token_path" => Some(Self::GitlabTokenPath),
+            "gitea_token_path" => Some(Self::GiteaTokenPath),
+            "credentials_attempts" => Some(Self::CredentialsAttempts),
+            "credentials_timeout" => Some(Self::CredentialsTimeout),
+            "tags" => Some(Self::Tags),
+            "time_format" => Some(Self::TimeFormat),
+            _ => None,
+        }
+    }
+}
+
 /// `Config` struct for storing user set config for lazyissues
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -214,51 +253,47 @@ impl Config {
         parent_node: &KdlDocument,
         option_name: &str,
     ) -> Result<(), IoError> {
-        let option_node = parent_node.get(option_name);
+        let Some(option_node) = parent_node.get(option_name) else {
+            log::debug!("Option: {option_name} is not a child of node: {parent_node:?}",);
+            return Ok(());
+        };
+        let Some(config_option) = ConfigOption::parse(option_name) else {
+            log::warn!("Option: {option_name} is not a recognized option.",);
+            return Ok(());
+        };
 
-        match option_node {
-            Some(node) => match option_name {
-                "github_token_path" => {
-                    self.github_token_path = get_first_entry_as_PathBuf!(node);
-                }
-                "gitlab_token_path" => {
-                    self.gitlab_token_path = get_first_entry_as_PathBuf!(node);
-                }
-                "gitea_token_path" => {
-                    self.gitea_token_path = get_first_entry_as_PathBuf!(node);
-                }
-                "credentials_attempts" => {
-                    self.credential_attempts = get_first_entry_as_int!(node)
-                        .unwrap_or(4)
-                        .try_into()
-                        .unwrap_or(4);
-                }
-                "credentials_timeout" => {
-                    self.credential_timeout = get_first_entry_as_int!(node)
-                        .unwrap_or(50)
-                        .try_into()
-                        .unwrap_or(50);
-                }
-                "tags" => {
-                    self.read_tag_node(node);
-                }
-                "time_format" => {
-                    self.time_fmt = get_first_entry_as_string!(node)
-                        .unwrap_or_default()
-                        .to_string();
-                }
-                _ => {
-                    log::info!("Option: {} is not a recognized option", option_name);
-                }
-            },
-            _ => {
-                log::debug!(
-                    "Option: {} is not a child of node: {:?}",
-                    option_name,
-                    parent_node
-                );
+        match config_option {
+            ConfigOption::GithubTokenPath => {
+                self.github_token_path = get_first_entry_as_PathBuf!(option_node);
+            }
+            ConfigOption::GitlabTokenPath => {
+                self.gitlab_token_path = get_first_entry_as_PathBuf!(option_node);
+            }
+            ConfigOption::GiteaTokenPath => {
+                self.gitea_token_path = get_first_entry_as_PathBuf!(option_node);
+            }
+            ConfigOption::CredentialsAttempts => {
+                self.credential_attempts = get_first_entry_as_int!(option_node)
+                    .unwrap_or(4)
+                    .try_into()
+                    .unwrap_or(4);
+            }
+            ConfigOption::CredentialsTimeout => {
+                self.credential_timeout = get_first_entry_as_int!(option_node)
+                    .unwrap_or(50)
+                    .try_into()
+                    .unwrap_or(50);
+            }
+            ConfigOption::Tags => {
+                self.read_tag_node(option_node);
+            }
+            ConfigOption::TimeFormat => {
+                self.time_fmt = get_first_entry_as_string!(option_node)
+                    .unwrap_or_default()
+                    .to_string();
             }
         }
+
         Ok(())
     }
 
