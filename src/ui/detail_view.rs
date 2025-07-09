@@ -3,7 +3,7 @@ use std::{ops::Deref, rc::Rc};
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Direction, Flex, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, List, ListState, Paragraph, Wrap},
     Frame,

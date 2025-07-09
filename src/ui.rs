@@ -1,5 +1,5 @@
 use std::{
-    any::Any, collections::HashMap, error::Error, future::Future, path::PathBuf, pin::Pin, rc::Rc,
+    collections::HashMap, error::Error, future::Future, path::PathBuf, pin::Pin, rc::Rc,
     sync::mpsc, thread,
 };
 
@@ -16,8 +16,8 @@ use tokio::runtime::Runtime;
 use crate::{
     config::{git::get_git_repo_root, Config, State},
     graphql_requests::github::{
-        issue_detail_query, issues_query, perform_issues_query, perform_projects_query,
-        perform_pull_requests_query, projects_query, pull_requests_query, VariableStore,
+        issues_query, perform_issues_query, perform_projects_query, perform_pull_requests_query,
+        projects_query, pull_requests_query, VariableStore,
     },
 };
 
