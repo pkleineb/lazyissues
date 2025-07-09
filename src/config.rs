@@ -108,6 +108,9 @@ pub const CONFIG_DIR_NAME: &str = "lazyissues";
 
 pub const STATE_NAME: &str = "state.kdl";
 
+const DEFAULT_CREDENTIAL_ATTEMPTS: u64 = 4;
+const DEFAULT_CREDENTIAL_TIMEOUT: u64 = 50;
+
 /// gets the lazyissues config filepath
 pub fn get_config_file() -> PathBuf {
     config_local_dir()
@@ -206,8 +209,8 @@ impl Default for Config {
                 ("wontfix".to_string(), Color::White),
             ]),
 
-            credential_attempts: 4,
-            credential_timeout: 50,
+            credential_attempts: DEFAULT_CREDENTIAL_ATTEMPTS,
+            credential_timeout: DEFAULT_CREDENTIAL_TIMEOUT,
 
             time_fmt: "%H:%M %d.%m.%Y".to_string(),
         }
@@ -274,15 +277,15 @@ impl Config {
             }
             ConfigOption::CredentialsAttempts => {
                 self.credential_attempts = get_first_entry_as_int!(option_node)
-                    .unwrap_or(4)
-                    .try_into()
-                    .unwrap_or(4);
+                    .map(|value| u64::try_from(value).ok())
+                    .flatten()
+                    .unwrap_or(DEFAULT_CREDENTIAL_ATTEMPTS);
             }
             ConfigOption::CredentialsTimeout => {
                 self.credential_timeout = get_first_entry_as_int!(option_node)
-                    .unwrap_or(50)
-                    .try_into()
-                    .unwrap_or(50);
+                    .map(|value| u64::try_from(value).ok())
+                    .flatten()
+                    .unwrap_or(DEFAULT_CREDENTIAL_TIMEOUT);
             }
             ConfigOption::Tags => {
                 self.read_tag_node(option_node);
