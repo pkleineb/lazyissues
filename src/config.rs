@@ -103,12 +103,18 @@ macro_rules! report_error_to_log {
     };
 }
 
+/// constant for the config file's name
 pub const CONFIG_NAME: &str = "config.kdl";
+/// constant for the directory where the config file is imediately located in
 pub const CONFIG_DIR_NAME: &str = "lazyissues";
 
+/// constant for the state file's name
 pub const STATE_NAME: &str = "state.kdl";
 
+/// constant default value for the amount of requests for getting credentials from a keyring on the system
 const DEFAULT_CREDENTIAL_ATTEMPTS: u64 = 4;
+/// constant default value for the time we wait for a response from the systems keyring system
+/// (interesting sentence)
 const DEFAULT_CREDENTIAL_TIMEOUT: u64 = 50;
 
 /// gets the lazyissues config filepath
@@ -129,6 +135,7 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
+/// Enum for storing all implemented config options definable in the config.kdl config file
 enum ConfigOption {
     GithubTokenPath,
     GitlabTokenPath,
@@ -139,21 +146,18 @@ enum ConfigOption {
     TimeFormat,
 }
 
-impl From<&ConfigOption> for &str {
-    fn from(value: &ConfigOption) -> &'static str {
-        match value {
-            ConfigOption::GithubTokenPath => "github_token_path",
-            ConfigOption::GitlabTokenPath => "gitlab_token_path",
-            ConfigOption::GiteaTokenPath => "gitea_token_path",
-            ConfigOption::CredentialsAttempts => "credentials_attempts",
-            ConfigOption::CredentialsTimeout => "credentials_timeout",
-            ConfigOption::Tags => "tags",
-            ConfigOption::TimeFormat => "time_format",
-        }
-    }
-}
-
 impl ConfigOption {
+    /// Parses a &str into a config option this might succeed.
+    /// ```no_run
+    /// "github_token_path" => Some(Self::GithubTokenPath),
+    /// "gitlab_token_path" => Some(Self::GitlabTokenPath),
+    /// "gitea_token_path" => Some(Self::GiteaTokenPath),
+    /// "credentials_attempts" => Some(Self::CredentialsAttempts),
+    /// "credentials_timeout" => Some(Self::CredentialsTimeout),
+    /// "tags" => Some(Self::Tags),
+    /// "time_format" => Some(Self::TimeFormat),
+    /// "keys" => Some(Self::Keys),
+    /// ```
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "github_token_path" => Some(Self::GithubTokenPath),
@@ -260,6 +264,8 @@ impl Config {
             log::debug!("Option: {option_name} is not a child of node: {parent_node:?}",);
             return Ok(());
         };
+        // TODO instead of only logging this I want to return errors and have them logged maybe
+        // above this as well idk
         let Some(config_option) = ConfigOption::parse(option_name) else {
             log::warn!("Option: {option_name} is not a recognized option.",);
             return Ok(());
@@ -320,6 +326,7 @@ impl Config {
         }
     }
 
+    /// returns the date time format used by this configuration
     pub fn get_datetime_fmt(&self) -> &str {
         &self.time_fmt
     }
