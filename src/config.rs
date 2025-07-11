@@ -1,7 +1,9 @@
 use dirs::config_local_dir;
 use kdl::{KdlDocument, KdlNode, KdlNodeFormat};
 use keyring::Entry;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
+use regex::Regex;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Error as IoError, Write};
@@ -10,6 +12,8 @@ use std::process::{Child, Command, Output};
 use std::str::FromStr;
 use std::time::Duration;
 use std::{env, fs};
+
+use crate::KeyAction;
 
 pub mod git;
 
@@ -117,6 +121,8 @@ const DEFAULT_CREDENTIAL_ATTEMPTS: u64 = 4;
 /// (interesting sentence)
 const DEFAULT_CREDENTIAL_TIMEOUT: u64 = 50;
 
+const BIND_KEY: &str = "bind";
+
 /// gets the lazyissues config filepath
 pub fn get_config_file() -> PathBuf {
     config_local_dir()
@@ -144,6 +150,7 @@ enum ConfigOption {
     CredentialsTimeout,
     Tags,
     TimeFormat,
+    Keys,
 }
 
 impl ConfigOption {
@@ -167,6 +174,7 @@ impl ConfigOption {
             "credentials_timeout" => Some(Self::CredentialsTimeout),
             "tags" => Some(Self::Tags),
             "time_format" => Some(Self::TimeFormat),
+            "keys" => Some(Self::Keys),
             _ => None,
         }
     }
@@ -188,6 +196,8 @@ pub struct Config {
     credential_timeout: u64,
 
     time_fmt: String,
+
+    keys: HashMap<KeyEvent, KeyAction>,
 }
 
 impl Default for Config {
@@ -217,6 +227,33 @@ impl Default for Config {
             credential_timeout: DEFAULT_CREDENTIAL_TIMEOUT,
 
             time_fmt: "%H:%M %d.%m.%Y".to_string(),
+
+            keys: HashMap::from([
+                (
+                    KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE),
+                    KeyAction::NextItem,
+                ),
+                (
+                    KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE),
+                    KeyAction::PreviousItem,
+                ),
+                (
+                    KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
+                    KeyAction::NextView,
+                ),
+                (
+                    KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT),
+                    KeyAction::NextItem,
+                ),
+                (
+                    KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL),
+                    KeyAction::NextDetailItem,
+                ),
+                (
+                    KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
+                    KeyAction::PreviousDetailItem,
+                ),
+            ]),
         }
     }
 }
@@ -301,6 +338,9 @@ impl Config {
                     .unwrap_or_default()
                     .to_string();
             }
+            ConfigOption::Keys => {
+                self.read_keys_node(option_node);
+            }
         }
 
         Ok(())
@@ -313,6 +353,7 @@ impl Config {
                 child.name().value().to_string(),
                 match Color::from_str(get_first_entry_as_string!(child).unwrap_or("white")) {
                     Ok(color) => color,
+                    // TODO return Err with custom error with nice error message
                     Err(error) => {
                         log::error!(
                             "While parsing custom tag node: {} got error {}",
@@ -324,6 +365,81 @@ impl Config {
                 },
             );
         }
+    }
+
+    fn read_keys_node(&mut self, key_node: &KdlNode) {
+        for child in key_node.iter_children() {
+            if child.name().value() != BIND_KEY {
+                continue;
+            }
+
+            // TODO return Err with custom error with nice error message
+            let entries: Vec<&str> = get_entries_as_string_vec!(child);
+            let Some(key) = entries.first() else {
+                return;
+            };
+
+            let Some(action) = entries.get(1) else {
+                return;
+            };
+
+            let Some(action) = KeyAction::parse(action) else {
+                return;
+            };
+
+            self.keys.insert(
+                Self::parse_key_event(key).expect("implement error better PLEASE"),
+                action,
+            );
+        }
+    }
+
+    fn parse_key_event(key_str: &str) -> Result<KeyEvent, Box<dyn Error>> {
+        // modifiers should always be write inside <>
+        let modifier_regex = match Regex::new(r"<.+?>") {
+            Ok(reg) => reg,
+            Err(error) => {
+                log::debug!("Couldn't create regex because of error: {error}");
+                return Err("implement this better pls".into());
+            }
+        };
+        let modifiers: Vec<_> = modifier_regex
+            .find_iter(key_str)
+            .map(|capture| capture.as_str())
+            .collect();
+
+        let mut key_modifier = KeyModifiers::NONE;
+        for modifier in modifiers {
+            match modifier {
+                "<shft>" => key_modifier |= KeyModifiers::SHIFT,
+                "<super>" => key_modifier |= KeyModifiers::SUPER,
+                "<ctrl>" => key_modifier |= KeyModifiers::CONTROL,
+                "<alt>" => key_modifier |= KeyModifiers::ALT,
+                "<meta>" => key_modifier |= KeyModifiers::META,
+                "<hypr>" => key_modifier |= KeyModifiers::HYPER, // hyprland mention?!
+                _ => log::warn!("{modifier} is not a recognized modifier key. Available ones are: <shft>, <super>, <ctrl>, <alt>, <meta> and <hypr>"),
+            }
+        }
+
+        let key_regex = match Regex::new(r"<.+?>") {
+            Ok(reg) => reg,
+            Err(error) => {
+                log::debug!("Couldn't create regex because of error: {error}");
+                return Err("implement this better pls".into());
+            }
+        };
+
+        let Some(key) = key_regex.find(key_str) else {
+            log::warn!("Couldn't find any charcter for the action in {key_str}.");
+            return Err("implement this better pls".into());
+        };
+
+        let Some(key) = key.as_str().chars().next() else {
+            log::warn!("Couldn't convert key to char since the &str was empty.");
+            return Err("implement this better pls".into());
+        };
+
+        Ok(KeyEvent::new(KeyCode::Char(key), key_modifier))
     }
 
     /// returns the date time format used by this configuration

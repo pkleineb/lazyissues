@@ -24,6 +24,30 @@ mod ui;
 /// Sets tick rate(minimum intervall for a full redraw)
 pub const TICK_RATE: Duration = Duration::from_millis(200);
 
+#[derive(Debug, Clone)]
+pub enum KeyAction {
+    NextItem,
+    PreviousItem,
+    NextView,
+    PreviousView,
+    NextDetailItem,
+    PreviousDetailItem,
+}
+
+impl KeyAction {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "NextItem" => Some(Self::NextItem),
+            "PreviousItem" => Some(Self::PreviousItem),
+            "NextView" => Some(Self::NextView),
+            "PreviousView" => Some(Self::PreviousView),
+            "NextDetailItem" => Some(Self::NextDetailItem),
+            "PreviousDetailItem" => Some(Self::PreviousDetailItem),
+            _ => None,
+        }
+    }
+}
+
 /// Event enum to carry Input or Tick event to TerminalApp
 pub enum Event<I> {
     Input(I),
