@@ -24,7 +24,7 @@ mod ui;
 /// Sets tick rate(minimum intervall for a full redraw)
 pub const TICK_RATE: Duration = Duration::from_millis(200);
 
-/// Eventenum to carry Input or Tick event to TerminalApp
+/// Event enum to carry Input or Tick event to TerminalApp
 pub enum Event<I> {
     Input(I),
     Tick,
