@@ -6,6 +6,7 @@ use ratatui::style::Color;
 use regex::Regex;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt::Display;
 use std::io::{Error as IoError, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Output};
@@ -141,6 +142,104 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
+#[derive(Debug)]
+enum ConfigError {
+    ConfigFileNotParsable {
+        file_location: String,
+    },
+    FileNotReadable {
+        file_location: String,
+        line: usize,
+        span: usize,
+    },
+    Syntax {
+        file_location: String,
+        line: usize,
+    },
+    OptionType {
+        file_location: String,
+        line: usize,
+        span: usize,
+        expected_type: String,
+        actual_type: String,
+    },
+    ExpectedMultipleValues {
+        file_location: String,
+        line: usize,
+        span: usize,
+        expected_amount: usize,
+        actual_amount: usize,
+    },
+    UnrecognisedOption {
+        file_location: String,
+        line: usize,
+        span: usize,
+        option_name: String,
+    },
+    UnrecognisedAction {
+        file_location: String,
+        line: usize,
+        span: usize,
+        action_name: String,
+    },
+    UnrecognisedModifier {
+        file_location: String,
+        line: usize,
+        span: usize,
+        modifier_name: String,
+        valid_modifiers: String,
+    },
+    KeyNotFound {
+        file_location: String,
+        line: usize,
+        span: usize,
+        key_string: String,
+    },
+    KeyToCharConversion {
+        file_location: String,
+        line: usize,
+        span: usize,
+        grabbed_key_string: String,
+    },
+}
+
+impl Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ConfigFileNotParsable {
+                file_location
+            } => write!(f, "ConfigFileNotParsable error: coudlnt't parse config file at location {file_location}."),
+            Self::FileNotReadable {
+                file_location,
+                line,
+                span,
+            } => write!(f, "FileNotReadable error: couldn't read file in {file_location} declared on line {line}, {span}."),
+            Self::OptionType {
+                file_location,
+                line,
+                span,
+                expected_type,
+                actual_type,
+            } => write!(f, "OptionType error: while parsing file {file_location} expected option on line {line}, {span} to be of type {expected_type}, but was of type {actual_type}."),
+            Self::ExpectedMultipleValues {
+                file_location,
+                line,
+                span,
+                expected_amount,
+                actual_amount,
+            } => write!(f, "OptionSyntax error: while parsing file {file_location} expected option on line {line}, {span} to have {expected_amount} values, but only had {actual_amount} values."),
+            Self::UnrecognisedOption { file_location, line, span, option_name } => write!(f, "UnrecognisedOption error: while parsing file {file_location} option \"{option_name}\" on line {line}, {span} is not a valid option."),
+            Self::Syntax { file_location, line } => write!(f, "Syntax error: while parsing file {file_location} a syntax error occured in line {line}."),
+            Self::UnrecognisedAction { file_location, line, span, action_name } => write!(f, "UnrecognisedAction error: while parsing file {file_location} action \"{action_name}\" on line {line}, {span} is not a valid action."),
+            Self::UnrecognisedModifier { file_location, line, span, modifier_name, valid_modifiers } => write!(f, "UnrecognisedModifier error: while parsing file {file_location} modifier \"{modifier_name}\" on line {line}, {span} is not a valid modifier. Available ones are: {valid_modifiers}"),
+            Self::KeyNotFound { file_location, line, span, key_string } => write!(f, "KeyNotFound error: while parsing file {file_location} couldn't extract any key in \"{key_string}\" on line {line}, {span}."),
+            Self::KeyToCharConversion { file_location, line, span, grabbed_key_string } => write!(f, "KeyToCharConversion error: while parsing file {file_location} couldn't convert key \"{grabbed_key_string}\" on line {line}, {span} into a char to set keybind."),
+        }
+    }
+}
+
+impl Error for ConfigError {}
+
 /// Enum for storing all implemented config options definable in the config.kdl config file
 enum ConfigOption {
     GithubTokenPath,
@@ -180,6 +279,18 @@ impl ConfigOption {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+struct ConfigParsingContext {
+    file_location: PathBuf,
+    line: usize,
+}
+
+impl ConfigParsingContext {
+    pub fn file_location(&self) -> String {
+        self.file_location.to_string_lossy().to_string()
+    }
+}
+
 /// `Config` struct for storing user set config for lazyissues
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -198,11 +309,32 @@ pub struct Config {
     time_fmt: String,
 
     keys: HashMap<KeyEvent, KeyAction>,
+
+    parsing_context: ConfigParsingContext,
+    modifier_regex: Regex,
+    key_regex: Regex,
 }
 
 impl Default for Config {
     /// creates a new instance of `Config` using default values
     fn default() -> Self {
+        // modifiers should always be written inside <>
+        let modifier_regex = match Regex::new(r"<.+?>") {
+            Ok(reg) => reg,
+            Err(error) => {
+                log::debug!("Couldn't create regex because of error: {error}");
+                Regex::new("").expect("always valid")
+            }
+        };
+
+        let key_regex = match Regex::new(r".*<[^>]+>(?<char>[a-z])") {
+            Ok(reg) => reg,
+            Err(error) => {
+                log::debug!("Couldn't create regex because of error: {error}");
+                Regex::new("").expect("always valid")
+            }
+        };
+
         Self {
             github_token: None,
             github_token_path: None,
@@ -254,6 +386,11 @@ impl Default for Config {
                     KeyAction::PreviousDetailItem,
                 ),
             ]),
+
+            parsing_context: ConfigParsingContext::default(),
+
+            modifier_regex,
+            key_regex,
         }
     }
 }
@@ -261,12 +398,13 @@ impl Default for Config {
 impl Config {
     /// reads in config file creating config based on this file
     pub fn from_config_file() -> Result<Self, IoError> {
-        let kdl_str = fs::read_to_string(get_config_file())?;
-        Self::from_kdl_str(&kdl_str)
+        let config_file_location = get_config_file();
+        let kdl_str = fs::read_to_string(&config_file_location)?;
+        Self::from_kdl_str(&kdl_str, config_file_location)
     }
 
     /// creates config based on a KdlDocument parsed to a string
-    fn from_kdl_str(kdl_str: &str) -> Result<Self, IoError> {
+    fn from_kdl_str(kdl_str: &str, file_location: PathBuf) -> Result<Self, IoError> {
         let kdl_config = KdlDocument::parse(kdl_str).map_err(|error| {
             IoError::new(
                 std::io::ErrorKind::InvalidData,
@@ -275,11 +413,17 @@ impl Config {
         })?;
 
         let mut config = Self::default();
+        config.parsing_context.file_location = file_location;
 
-        for node in kdl_config.nodes() {
+        for (line, node) in kdl_config.nodes().iter().enumerate() {
+            config.parsing_context.line = line;
             match config.apply_option(&kdl_config, node.name().value()) {
                 Ok(_) => (),
-                Err(error) => log::error!("{} occured while parsing config", error),
+                Err(errors) => {
+                    for error in errors {
+                        log::error!("{error}");
+                    }
+                }
             }
         }
 
@@ -296,16 +440,21 @@ impl Config {
         &mut self,
         parent_node: &KdlDocument,
         option_name: &str,
-    ) -> Result<(), IoError> {
+    ) -> Result<(), Vec<ConfigError>> {
         let Some(option_node) = parent_node.get(option_name) else {
-            log::debug!("Option: {option_name} is not a child of node: {parent_node:?}",);
-            return Ok(());
+            return Err(vec![ConfigError::Syntax {
+                file_location: self.parsing_context.file_location(),
+                line: self.parsing_context.line,
+            }]);
         };
-        // TODO instead of only logging this I want to return errors and have them logged maybe
-        // above this as well idk
+
         let Some(config_option) = ConfigOption::parse(option_name) else {
-            log::warn!("Option: {option_name} is not a recognized option.",);
-            return Ok(());
+            return Err(vec![ConfigError::UnrecognisedOption {
+                file_location: self.parsing_context.file_location(),
+                line: self.parsing_context.line,
+                span: option_node.span().len(),
+                option_name: option_name.to_string(),
+            }]);
         };
 
         match config_option {
@@ -331,7 +480,7 @@ impl Config {
                     .unwrap_or(DEFAULT_CREDENTIAL_TIMEOUT);
             }
             ConfigOption::Tags => {
-                self.read_tag_node(option_node);
+                self.read_tag_node(option_node)?;
             }
             ConfigOption::TimeFormat => {
                 self.time_fmt = get_first_entry_as_string!(option_node)
@@ -339,7 +488,7 @@ impl Config {
                     .to_string();
             }
             ConfigOption::Keys => {
-                self.read_keys_node(option_node);
+                self.read_keys_node(option_node)?;
             }
         }
 
@@ -347,7 +496,8 @@ impl Config {
     }
 
     /// reads a tag node determining the associated color and it's name
-    fn read_tag_node(&mut self, tag_node: &KdlNode) {
+    fn read_tag_node(&mut self, tag_node: &KdlNode) -> Result<(), Vec<ConfigError>> {
+        let mut errors = vec![];
         for child in tag_node.iter_children() {
             self.tag_styles.insert(
                 child.name().value().to_string(),
@@ -355,6 +505,9 @@ impl Config {
                     Ok(color) => color,
                     // TODO return Err with custom error with nice error message
                     Err(error) => {
+                        errors.push(ConfigError::ConfigFileNotParsable {
+                            file_location: self.parsing_context.file_location(),
+                        });
                         log::error!(
                             "While parsing custom tag node: {} got error {}",
                             child.name().value(),
@@ -365,48 +518,80 @@ impl Config {
                 },
             );
         }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
-    fn read_keys_node(&mut self, key_node: &KdlNode) {
+    fn read_keys_node(&mut self, key_node: &KdlNode) -> Result<(), Vec<ConfigError>> {
+        let mut errors = vec![];
         for child in key_node.iter_children() {
             if child.name().value() != BIND_KEY {
                 continue;
             }
 
-            // TODO return Err with custom error with nice error message
             let entries: Vec<&str> = get_entries_as_string_vec!(child);
             let Some(key) = entries.first() else {
-                return;
+                errors.push(ConfigError::ExpectedMultipleValues {
+                    file_location: self.parsing_context.file_location(),
+                    line: self.parsing_context.line,
+                    span: key_node.span().len(),
+                    expected_amount: 2,
+                    actual_amount: 0,
+                });
+                continue;
             };
 
             let Some(action) = entries.get(1) else {
-                return;
+                errors.push(ConfigError::ExpectedMultipleValues {
+                    file_location: self.parsing_context.file_location(),
+                    line: self.parsing_context.line,
+                    span: key_node.span().len(),
+                    expected_amount: 2,
+                    actual_amount: 1,
+                });
+                continue;
             };
 
             let Some(action) = KeyAction::parse(action) else {
-                return;
+                errors.push(ConfigError::UnrecognisedAction {
+                    file_location: self.parsing_context.file_location(),
+                    line: self.parsing_context.line,
+                    span: key_node.span().len(),
+                    action_name: action.to_string(),
+                });
+                continue;
             };
 
-            self.keys.insert(
-                Self::parse_key_event(key).expect("implement error better PLEASE"),
-                action,
-            );
+            let key_event = match self.parse_key_event(key, child) {
+                Ok(key) => key,
+                Err(mut parse_errors) => {
+                    errors.append(&mut parse_errors);
+                    continue;
+                }
+            };
+
+            self.keys.insert(key_event, action);
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
         }
     }
 
-    fn parse_key_event(key_str: &str) -> Result<KeyEvent, Box<dyn Error>> {
-        // modifiers should always be write inside <>
-        let modifier_regex = match Regex::new(r"<.+?>") {
-            Ok(reg) => reg,
-            Err(error) => {
-                log::debug!("Couldn't create regex because of error: {error}");
-                return Err("implement this better pls".into());
-            }
-        };
-        let modifiers: Vec<_> = modifier_regex
+    fn parse_key_event(&self, key_str: &str, node: &KdlNode) -> Result<KeyEvent, Vec<ConfigError>> {
+        let modifiers: Vec<_> = self
+            .modifier_regex
             .find_iter(key_str)
             .map(|capture| capture.as_str())
             .collect();
+
+        let mut errors = vec![];
 
         let mut key_modifier = KeyModifiers::NONE;
         for modifier in modifiers {
@@ -417,26 +602,45 @@ impl Config {
                 "<alt>" => key_modifier |= KeyModifiers::ALT,
                 "<meta>" => key_modifier |= KeyModifiers::META,
                 "<hypr>" => key_modifier |= KeyModifiers::HYPER, // hyprland mention?!
-                _ => log::warn!("{modifier} is not a recognized modifier key. Available ones are: <shft>, <super>, <ctrl>, <alt>, <meta> and <hypr>"),
+                _ => errors.push(ConfigError::UnrecognisedModifier {
+                    file_location: self.parsing_context.file_location(),
+                    line: self.parsing_context.line,
+                    span: node.span().len(),
+                    modifier_name: modifier.to_string(),
+                    valid_modifiers: "<shft>, <super>, <ctrl>, <alt>, <meta> and <hypr>"
+                        .to_string(),
+                }),
             }
         }
 
-        let key_regex = match Regex::new(r"<.+?>") {
-            Ok(reg) => reg,
-            Err(error) => {
-                log::debug!("Couldn't create regex because of error: {error}");
-                return Err("implement this better pls".into());
-            }
+        let Some(captures) = self.key_regex.captures(key_str) else {
+            errors.push(ConfigError::KeyNotFound {
+                file_location: self.parsing_context.file_location(),
+                line: self.parsing_context.line,
+                span: node.span().len(),
+                key_string: key_str.to_string(),
+            });
+            return Err(errors);
         };
 
-        let Some(key) = key_regex.find(key_str) else {
-            log::warn!("Couldn't find any charcter for the action in {key_str}.");
-            return Err("implement this better pls".into());
+        let Some(key) = captures.name("char") else {
+            errors.push(ConfigError::KeyNotFound {
+                file_location: self.parsing_context.file_location(),
+                line: self.parsing_context.line,
+                span: node.span().len(),
+                key_string: key_str.to_string(),
+            });
+            return Err(errors);
         };
 
         let Some(key) = key.as_str().chars().next() else {
-            log::warn!("Couldn't convert key to char since the &str was empty.");
-            return Err("implement this better pls".into());
+            errors.push(ConfigError::KeyToCharConversion {
+                file_location: self.parsing_context.file_location(),
+                line: self.parsing_context.line,
+                span: node.span().len(),
+                grabbed_key_string: key.as_str().to_string(),
+            });
+            return Err(errors);
         };
 
         Ok(KeyEvent::new(KeyCode::Char(key), key_modifier))
