@@ -141,6 +141,23 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
+#[derive(Debug)]
+enum ConfigError {
+    File {
+        file_location: String,
+    },
+    OptionSyntax {
+        file_location: String,
+        line: usize,
+        span: usize,
+    },
+    OptionType {
+        file_location: String,
+        line: usize,
+        span: usize,
+    },
+}
+
 /// Enum for storing all implemented config options definable in the config.kdl config file
 enum ConfigOption {
     GithubTokenPath,
