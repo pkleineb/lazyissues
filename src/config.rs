@@ -142,6 +142,7 @@ pub fn get_state_file() -> PathBuf {
         .to_owned()
 }
 
+/// Tracks errors in the configuration file during reading
 #[derive(Debug)]
 enum ConfigError {
     ConfigFileNotParsable {
@@ -156,6 +157,7 @@ enum ConfigError {
         file_location: String,
         line: usize,
     },
+    /// The type used for the option could not be coerced into the expected type
     OptionType {
         file_location: String,
         line: usize,
@@ -163,6 +165,7 @@ enum ConfigError {
         expected_type: String,
         actual_type: String,
     },
+    /// We expected multiple Values to be set for an option
     ExpectedMultipleValues {
         file_location: String,
         line: usize,
@@ -170,18 +173,21 @@ enum ConfigError {
         expected_amount: usize,
         actual_amount: usize,
     },
+    /// An Option was unexpected at this point
     UnrecognisedOption {
         file_location: String,
         line: usize,
         span: usize,
         option_name: String,
     },
+    /// The Action parsed form the key binding was not parsable
     UnrecognisedAction {
         file_location: String,
         line: usize,
         span: usize,
         action_name: String,
     },
+    /// The modifier set for a specific keybinding is not valid
     UnrecognisedModifier {
         file_location: String,
         line: usize,
@@ -189,12 +195,14 @@ enum ConfigError {
         modifier_name: String,
         valid_modifiers: String,
     },
+    /// Couldn't parse key from a String
     KeyNotFound {
         file_location: String,
         line: usize,
         span: usize,
         key_string: String,
     },
+    /// Converting a parsed key char into a Char failed
     KeyToCharConversion {
         file_location: String,
         line: usize,
@@ -279,6 +287,7 @@ impl ConfigOption {
     }
 }
 
+/// Carries information on the current state of parsing the config file
 #[derive(Debug, Default, Clone)]
 struct ConfigParsingContext {
     file_location: PathBuf,
@@ -526,6 +535,7 @@ impl Config {
         }
     }
 
+    /// reads a `keys` node setting key bindings for all lines starting with `bind`
     fn read_keys_node(&mut self, key_node: &KdlNode) -> Result<(), Vec<ConfigError>> {
         let mut errors = vec![];
         for child in key_node.iter_children() {
@@ -584,6 +594,7 @@ impl Config {
         }
     }
 
+    /// Parses a keycombination binding into a KeyEvent
     fn parse_key_event(&self, key_str: &str, node: &KdlNode) -> Result<KeyEvent, Vec<ConfigError>> {
         let modifiers: Vec<_> = self
             .modifier_regex
