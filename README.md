@@ -1,6 +1,47 @@
 # A TUI issues, pr, projects and discussions tracker
 Currently this is a WIP. And only Github integration is implemented.
 
+## Roadmap
+- [x] Switch repository remote
+- [x] customizable time format
+- [ ] customizable colors
+- [x] customizable tag colors
+- [ ] customizable open/closed state indicators
+- [ ] Create customizable keybinds
+- [ ] Add github integration
+    - [ ] Issues
+        - [x] View all issues
+        - [x] Render issue tags
+        - [ ] View details about issue
+        - [ ] Add comment on issue
+        - [ ] Add issues
+        - [ ] Add tags to issue
+        - [ ] Delete issue
+        - [ ] Close issue
+        - [ ] Set issue metadata (assignee, time tracking, ...)
+    - [ ] Pull requests
+        - [x] View all pull requests
+        - [ ] View details about pull request
+        - [x] Render pull request tags
+        - [ ] Add comment on pull request
+        - [ ] Create pull requests
+        - [ ] Add tags to pull requests
+        - [ ] Delete pull request
+        - [ ] Close pull request
+        - [ ] Merge pull reqeust
+        - [ ] Set pull request metadata (assignee, time tracking, ...)
+    - [ ] Projects
+        - [x] View all projects
+        - [ ] View details about project
+        - [ ] Move issue to new state
+    - [ ] Comments
+        - [ ] Edit comments
+        - [ ] Add reaction to comments
+        - [ ] Delete comment
+- [ ] Add gitlab integration
+- [ ] Add gitea integration
+- [ ] Add forgejo integration
+
 ## Installation
 Since this is a WIP the only way to use is by compiling it yourself using: `cargo build`.
 
