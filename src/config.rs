@@ -201,6 +201,17 @@ struct ConfigError {
     kind: ConfigErrorKind,
 }
 
+fn log_errors(errors: Vec<ConfigError>) -> Result<(), Box<dyn Error>> {
+    let handler = GraphicalReportHandler::new_themed(GraphicalTheme::unicode());
+    for error in errors {
+        let mut output = String::new();
+        handler.render_report(&mut output, &error)?;
+        log::warn!("{output}");
+    }
+
+    Ok(())
+}
+
 /// Enum for storing all implemented config options definable in the config.kdl config file
 enum ConfigOption {
     GithubTokenPath,
@@ -365,14 +376,7 @@ impl Config {
         for node in kdl_config.nodes().iter() {
             match config.apply_option(&kdl_config, node.name().value(), src.clone()) {
                 Ok(_) => (),
-                Err(errors) => {
-                    let handler = GraphicalReportHandler::new_themed(GraphicalTheme::unicode());
-                    for error in errors {
-                        let mut output = String::new();
-                        handler.render_report(&mut output, &error)?;
-                        log::warn!("{output}");
-                    }
-                }
+                Err(errors) => log_errors(errors)?,
             }
         }
 
