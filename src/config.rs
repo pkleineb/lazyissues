@@ -187,6 +187,12 @@ enum ConfigErrorKind {
     /// Converting a parsed key char into a Char failed
     #[display("{self.name} error: couldn't convert key \"{grabbed_key_string}\" into a char to set keybind.")]
     KeyToCharConversion { grabbed_key_string: String },
+    ///
+    #[display("{self.name} error: coudln't parse color from string: \"{parsed_value}\", because of: {generated_error}")]
+    ColorNotParsable {
+        parsed_value: String,
+        generated_error: String,
+    },
 }
 
 #[derive(Error, Debug, Diagnostic)]
@@ -463,26 +469,8 @@ impl Config {
     ) -> Result<(), Vec<ConfigError>> {
         let mut errors = vec![];
         for child in tag_node.iter_children() {
-            self.tag_styles.insert(
-                child.name().value().to_string(),
-                match Color::from_str(get_first_entry_as_string!(child).unwrap_or("white")) {
-                    Ok(color) => color,
-                    // TODO return Err with custom error with nice error message
-                    Err(error) => {
-                        errors.push(ConfigError {
-                            src: src.clone(),
-                            error_location: None,
-                            kind: ConfigErrorKind::ConfigFileNotParsable,
-                        });
-                        log::error!(
-                            "While parsing custom tag node: {} got error {}",
-                            child.name().value(),
-                            error
-                        );
-                        Color::White
-                    }
-                },
-            );
+            let (tag_name, color) = self.parse_color_from_node(child, src.clone(), &mut errors);
+            self.tag_styles.insert(tag_name, color);
         }
 
         if errors.is_empty() {
@@ -490,6 +478,33 @@ impl Config {
         } else {
             Err(errors)
         }
+    }
+
+    /// parses the color that this node has as it's first argument
+    fn parse_color_from_node(
+        &mut self,
+        node: &KdlNode,
+        src: NamedSource<String>,
+        errors: &mut Vec<ConfigError>,
+    ) -> (String, Color) {
+        let tag_name = node.name().value().to_string();
+
+        let color = match Color::from_str(get_first_entry_as_string!(node).unwrap_or("white")) {
+            Ok(color) => color,
+            Err(error) => {
+                errors.push(ConfigError {
+                    src: src.clone(),
+                    error_location: Some((node.span().offset(), node.span().len()).into()),
+                    kind: ConfigErrorKind::ColorNotParsable {
+                        parsed_value: node.to_string(),
+                        generated_error: error.to_string(),
+                    },
+                });
+                Color::White
+            }
+        };
+
+        (tag_name, color)
     }
 
     /// reads a `keys` node setting key bindings for all lines starting with `bind`
