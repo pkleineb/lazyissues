@@ -1,22 +1,26 @@
 use dirs::config_local_dir;
 use kdl::{KdlDocument, KdlNode, KdlNodeFormat};
 use keyring::Entry;
+use miette::{Diagnostic, GraphicalReportHandler, GraphicalTheme, NamedSource, SourceSpan};
+use proc_display::Display;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Color;
 use regex::Regex;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt::Display;
 use std::io::{Error as IoError, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Output};
 use std::str::FromStr;
 use std::time::Duration;
 use std::{env, fs};
+use thiserror::Error;
 
 use crate::KeyAction;
 
 pub mod git;
+
+// TODO create unit and integration tests for reading the config
 
 /// gets a kdl nodes value as a string or emits an error passing through code using the ?-operator
 macro_rules! get_kdl_string_value_or_error {
@@ -143,110 +147,59 @@ pub fn get_state_file() -> PathBuf {
 }
 
 /// Tracks errors in the configuration file during reading
-#[derive(Debug)]
-enum ConfigError {
-    ConfigFileNotParsable {
-        file_location: String,
-    },
-    FileNotReadable {
-        file_location: String,
-        line: usize,
-        span: usize,
-    },
-    Syntax {
-        file_location: String,
-        line: usize,
-    },
+#[derive(Debug, Display)]
+enum ConfigErrorKind {
+    #[display("{self.name} error: coudlnt't parse config file.")]
+    ConfigFileNotParsable,
+    #[display("{self.name} error: couldn't read file.")]
+    FileNotReadable,
+    #[display("{self.name} error: a syntax error occured.")]
+    Syntax,
+    #[display("{self.name} error: couldn't find node named \"{node_name}\".")]
+    OptionNotFound { node_name: String },
     /// The type used for the option could not be coerced into the expected type
+    #[display("{self.name} error: expected option to be of type {expected_type}, but was of type {actual_type}.")]
     OptionType {
-        file_location: String,
-        line: usize,
-        span: usize,
         expected_type: String,
         actual_type: String,
     },
     /// We expected multiple Values to be set for an option
+    #[display("{self.name} error: expected option to have {expected_amount} values, but only had {actual_amount} values.")]
     ExpectedMultipleValues {
-        file_location: String,
-        line: usize,
-        span: usize,
         expected_amount: usize,
         actual_amount: usize,
     },
     /// An Option was unexpected at this point
-    UnrecognisedOption {
-        file_location: String,
-        line: usize,
-        span: usize,
-        option_name: String,
-    },
+    #[display("{self.name} error: option \"{option_name}\" is not a valid option.")]
+    UnrecognisedOption { option_name: String },
     /// The Action parsed form the key binding was not parsable
-    UnrecognisedAction {
-        file_location: String,
-        line: usize,
-        span: usize,
-        action_name: String,
-    },
+    #[display("{self.name} error: action \"{action_name}\" is not a valid action.")]
+    UnrecognisedAction { action_name: String },
     /// The modifier set for a specific keybinding is not valid
+    #[display("{self.name} error: modifier \"{modifier_name}\" is not a valid modifier. Available ones are: {valid_modifiers}")]
     UnrecognisedModifier {
-        file_location: String,
-        line: usize,
-        span: usize,
         modifier_name: String,
         valid_modifiers: String,
     },
     /// Couldn't parse key from a String
-    KeyNotFound {
-        file_location: String,
-        line: usize,
-        span: usize,
-        key_string: String,
-    },
+    #[display("{self.name} error: couldn't extract any key in \"{key_string}\".")]
+    KeyNotFound { key_string: String },
     /// Converting a parsed key char into a Char failed
-    KeyToCharConversion {
-        file_location: String,
-        line: usize,
-        span: usize,
-        grabbed_key_string: String,
-    },
+    #[display("{self.name} error: couldn't convert key \"{grabbed_key_string}\" into a char to set keybind.")]
+    KeyToCharConversion { grabbed_key_string: String },
 }
 
-impl Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ConfigFileNotParsable {
-                file_location
-            } => write!(f, "ConfigFileNotParsable error: coudlnt't parse config file at location {file_location}."),
-            Self::FileNotReadable {
-                file_location,
-                line,
-                span,
-            } => write!(f, "FileNotReadable error: couldn't read file in {file_location} declared on line {line}, {span}."),
-            Self::OptionType {
-                file_location,
-                line,
-                span,
-                expected_type,
-                actual_type,
-            } => write!(f, "OptionType error: while parsing file {file_location} expected option on line {line}, {span} to be of type {expected_type}, but was of type {actual_type}."),
-            Self::ExpectedMultipleValues {
-                file_location,
-                line,
-                span,
-                expected_amount,
-                actual_amount,
-            } => write!(f, "OptionSyntax error: while parsing file {file_location} expected option on line {line}, {span} to have {expected_amount} values, but only had {actual_amount} values."),
-            Self::UnrecognisedOption { file_location, line, span, option_name } => write!(f, "UnrecognisedOption error: while parsing file {file_location} option \"{option_name}\" on line {line}, {span} is not a valid option."),
-            Self::Syntax { file_location, line } => write!(f, "Syntax error: while parsing file {file_location} a syntax error occured in line {line}."),
-            Self::UnrecognisedAction { file_location, line, span, action_name } => write!(f, "UnrecognisedAction error: while parsing file {file_location} action \"{action_name}\" on line {line}, {span} is not a valid action."),
-            Self::UnrecognisedModifier { file_location, line, span, modifier_name, valid_modifiers } => write!(f, "UnrecognisedModifier error: while parsing file {file_location} modifier \"{modifier_name}\" on line {line}, {span} is not a valid modifier. Available ones are: {valid_modifiers}"),
-            Self::KeyNotFound { file_location, line, span, key_string } => write!(f, "KeyNotFound error: while parsing file {file_location} couldn't extract any key in \"{key_string}\" on line {line}, {span}."),
-            Self::KeyToCharConversion { file_location, line, span, grabbed_key_string } => write!(f, "KeyToCharConversion error: while parsing file {file_location} couldn't convert key \"{grabbed_key_string}\" on line {line}, {span} into a char to set keybind."),
-        }
-    }
-}
+#[derive(Error, Debug, Diagnostic)]
+#[error("{kind}")]
+struct ConfigError {
+    #[source_code]
+    src: NamedSource<String>,
 
-impl Error for ConfigError {}
+    #[label("here")]
+    error_location: Option<SourceSpan>,
+
+    kind: ConfigErrorKind,
+}
 
 /// Enum for storing all implemented config options definable in the config.kdl config file
 enum ConfigOption {
@@ -287,19 +240,6 @@ impl ConfigOption {
     }
 }
 
-/// Carries information on the current state of parsing the config file
-#[derive(Debug, Default, Clone)]
-struct ConfigParsingContext {
-    file_location: PathBuf,
-    line: usize,
-}
-
-impl ConfigParsingContext {
-    pub fn file_location(&self) -> String {
-        self.file_location.to_string_lossy().to_string()
-    }
-}
-
 /// `Config` struct for storing user set config for lazyissues
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -319,7 +259,6 @@ pub struct Config {
 
     keys: HashMap<KeyEvent, KeyAction>,
 
-    parsing_context: ConfigParsingContext,
     modifier_regex: Regex,
     key_regex: Regex,
 }
@@ -396,8 +335,6 @@ impl Default for Config {
                 ),
             ]),
 
-            parsing_context: ConfigParsingContext::default(),
-
             modifier_regex,
             key_regex,
         }
@@ -406,14 +343,15 @@ impl Default for Config {
 
 impl Config {
     /// reads in config file creating config based on this file
-    pub fn from_config_file() -> Result<Self, IoError> {
+    pub fn from_config_file() -> Result<Self, Box<dyn Error>> {
         let config_file_location = get_config_file();
         let kdl_str = fs::read_to_string(&config_file_location)?;
+
         Self::from_kdl_str(&kdl_str, config_file_location)
     }
 
     /// creates config based on a KdlDocument parsed to a string
-    fn from_kdl_str(kdl_str: &str, file_location: PathBuf) -> Result<Self, IoError> {
+    fn from_kdl_str(kdl_str: &str, file_location: PathBuf) -> Result<Self, Box<dyn Error>> {
         let kdl_config = KdlDocument::parse(kdl_str).map_err(|error| {
             IoError::new(
                 std::io::ErrorKind::InvalidData,
@@ -422,15 +360,17 @@ impl Config {
         })?;
 
         let mut config = Self::default();
-        config.parsing_context.file_location = file_location;
+        let src = NamedSource::new(file_location.to_string_lossy(), kdl_str.to_string());
 
-        for (line, node) in kdl_config.nodes().iter().enumerate() {
-            config.parsing_context.line = line;
-            match config.apply_option(&kdl_config, node.name().value()) {
+        for node in kdl_config.nodes().iter() {
+            match config.apply_option(&kdl_config, node.name().value(), src.clone()) {
                 Ok(_) => (),
                 Err(errors) => {
+                    let handler = GraphicalReportHandler::new_themed(GraphicalTheme::unicode());
                     for error in errors {
-                        log::error!("{error}");
+                        let mut output = String::new();
+                        handler.render_report(&mut output, &error)?;
+                        log::warn!("{output}");
                     }
                 }
             }
@@ -449,20 +389,27 @@ impl Config {
         &mut self,
         parent_node: &KdlDocument,
         option_name: &str,
+        src: NamedSource<String>,
     ) -> Result<(), Vec<ConfigError>> {
         let Some(option_node) = parent_node.get(option_name) else {
-            return Err(vec![ConfigError::Syntax {
-                file_location: self.parsing_context.file_location(),
-                line: self.parsing_context.line,
+            return Err(vec![ConfigError {
+                src: src.clone(),
+                error_location: None,
+                kind: ConfigErrorKind::OptionNotFound {
+                    node_name: option_name.to_string(),
+                },
             }]);
         };
 
         let Some(config_option) = ConfigOption::parse(option_name) else {
-            return Err(vec![ConfigError::UnrecognisedOption {
-                file_location: self.parsing_context.file_location(),
-                line: self.parsing_context.line,
-                span: option_node.span().len(),
-                option_name: option_name.to_string(),
+            return Err(vec![ConfigError {
+                src: src.clone(),
+                error_location: Some(
+                    (option_node.span().offset(), option_node.span().len()).into(),
+                ),
+                kind: ConfigErrorKind::UnrecognisedOption {
+                    option_name: option_name.to_string(),
+                },
             }]);
         };
 
@@ -489,7 +436,7 @@ impl Config {
                     .unwrap_or(DEFAULT_CREDENTIAL_TIMEOUT);
             }
             ConfigOption::Tags => {
-                self.read_tag_node(option_node)?;
+                self.read_tag_node(option_node, src.clone())?;
             }
             ConfigOption::TimeFormat => {
                 self.time_fmt = get_first_entry_as_string!(option_node)
@@ -497,7 +444,7 @@ impl Config {
                     .to_string();
             }
             ConfigOption::Keys => {
-                self.read_keys_node(option_node)?;
+                self.read_keys_node(option_node, src.clone())?;
             }
         }
 
@@ -505,7 +452,11 @@ impl Config {
     }
 
     /// reads a tag node determining the associated color and it's name
-    fn read_tag_node(&mut self, tag_node: &KdlNode) -> Result<(), Vec<ConfigError>> {
+    fn read_tag_node(
+        &mut self,
+        tag_node: &KdlNode,
+        src: NamedSource<String>,
+    ) -> Result<(), Vec<ConfigError>> {
         let mut errors = vec![];
         for child in tag_node.iter_children() {
             self.tag_styles.insert(
@@ -514,8 +465,10 @@ impl Config {
                     Ok(color) => color,
                     // TODO return Err with custom error with nice error message
                     Err(error) => {
-                        errors.push(ConfigError::ConfigFileNotParsable {
-                            file_location: self.parsing_context.file_location(),
+                        errors.push(ConfigError {
+                            src: src.clone(),
+                            error_location: None,
+                            kind: ConfigErrorKind::ConfigFileNotParsable,
                         });
                         log::error!(
                             "While parsing custom tag node: {} got error {}",
@@ -536,7 +489,11 @@ impl Config {
     }
 
     /// reads a `keys` node setting key bindings for all lines starting with `bind`
-    fn read_keys_node(&mut self, key_node: &KdlNode) -> Result<(), Vec<ConfigError>> {
+    fn read_keys_node(
+        &mut self,
+        key_node: &KdlNode,
+        src: NamedSource<String>,
+    ) -> Result<(), Vec<ConfigError>> {
         let mut errors = vec![];
         for child in key_node.iter_children() {
             if child.name().value() != BIND_KEY {
@@ -545,38 +502,41 @@ impl Config {
 
             let entries: Vec<&str> = get_entries_as_string_vec!(child);
             let Some(key) = entries.first() else {
-                errors.push(ConfigError::ExpectedMultipleValues {
-                    file_location: self.parsing_context.file_location(),
-                    line: self.parsing_context.line,
-                    span: key_node.span().len(),
-                    expected_amount: 2,
-                    actual_amount: 0,
+                errors.push(ConfigError {
+                    src: src.clone(),
+                    error_location: Some((key_node.span().offset(), key_node.span().len()).into()),
+                    kind: ConfigErrorKind::ExpectedMultipleValues {
+                        expected_amount: 2,
+                        actual_amount: 0,
+                    },
                 });
                 continue;
             };
 
             let Some(action) = entries.get(1) else {
-                errors.push(ConfigError::ExpectedMultipleValues {
-                    file_location: self.parsing_context.file_location(),
-                    line: self.parsing_context.line,
-                    span: key_node.span().len(),
-                    expected_amount: 2,
-                    actual_amount: 1,
+                errors.push(ConfigError {
+                    src: src.clone(),
+                    error_location: Some((key_node.span().offset(), key_node.span().len()).into()),
+                    kind: ConfigErrorKind::ExpectedMultipleValues {
+                        expected_amount: 2,
+                        actual_amount: 1,
+                    },
                 });
                 continue;
             };
 
             let Some(action) = KeyAction::parse(action) else {
-                errors.push(ConfigError::UnrecognisedAction {
-                    file_location: self.parsing_context.file_location(),
-                    line: self.parsing_context.line,
-                    span: key_node.span().len(),
-                    action_name: action.to_string(),
+                errors.push(ConfigError {
+                    src: src.clone(),
+                    error_location: Some((key_node.span().offset(), key_node.span().len()).into()),
+                    kind: ConfigErrorKind::UnrecognisedAction {
+                        action_name: action.to_string(),
+                    },
                 });
                 continue;
             };
 
-            let key_event = match self.parse_key_event(key, child) {
+            let key_event = match self.parse_key_event(key, child, src.clone()) {
                 Ok(key) => key,
                 Err(mut parse_errors) => {
                     errors.append(&mut parse_errors);
@@ -595,7 +555,12 @@ impl Config {
     }
 
     /// Parses a keycombination binding into a KeyEvent
-    fn parse_key_event(&self, key_str: &str, node: &KdlNode) -> Result<KeyEvent, Vec<ConfigError>> {
+    fn parse_key_event(
+        &self,
+        key_str: &str,
+        node: &KdlNode,
+        src: NamedSource<String>,
+    ) -> Result<KeyEvent, Vec<ConfigError>> {
         let modifiers: Vec<_> = self
             .modifier_regex
             .find_iter(key_str)
@@ -613,43 +578,47 @@ impl Config {
                 "<alt>" => key_modifier |= KeyModifiers::ALT,
                 "<meta>" => key_modifier |= KeyModifiers::META,
                 "<hypr>" => key_modifier |= KeyModifiers::HYPER, // hyprland mention?!
-                _ => errors.push(ConfigError::UnrecognisedModifier {
-                    file_location: self.parsing_context.file_location(),
-                    line: self.parsing_context.line,
-                    span: node.span().len(),
-                    modifier_name: modifier.to_string(),
-                    valid_modifiers: "<shft>, <super>, <ctrl>, <alt>, <meta> and <hypr>"
-                        .to_string(),
+                _ => errors.push(ConfigError {
+                    src: src.clone(),
+                    error_location: Some((node.span().offset(), node.span().len()).into()),
+                    kind: ConfigErrorKind::UnrecognisedModifier {
+                        modifier_name: modifier.to_string(),
+                        valid_modifiers: "<shft>, <super>, <ctrl>, <alt>, <meta> and <hypr>"
+                            .to_string(),
+                    },
                 }),
             }
         }
 
         let Some(captures) = self.key_regex.captures(key_str) else {
-            errors.push(ConfigError::KeyNotFound {
-                file_location: self.parsing_context.file_location(),
-                line: self.parsing_context.line,
-                span: node.span().len(),
-                key_string: key_str.to_string(),
+            errors.push(ConfigError {
+                src: src.clone(),
+                error_location: Some((node.span().offset(), node.span().len()).into()),
+                kind: ConfigErrorKind::KeyNotFound {
+                    key_string: key_str.to_string(),
+                },
             });
             return Err(errors);
         };
 
         let Some(key) = captures.name("char") else {
-            errors.push(ConfigError::KeyNotFound {
-                file_location: self.parsing_context.file_location(),
-                line: self.parsing_context.line,
-                span: node.span().len(),
-                key_string: key_str.to_string(),
+            errors.push(ConfigError {
+                src: src.clone(),
+                error_location: Some((node.span().offset(), node.span().len()).into()),
+                kind: ConfigErrorKind::KeyNotFound {
+                    key_string: key_str.to_string(),
+                },
             });
             return Err(errors);
         };
 
         let Some(key) = key.as_str().chars().next() else {
-            errors.push(ConfigError::KeyToCharConversion {
-                file_location: self.parsing_context.file_location(),
-                line: self.parsing_context.line,
-                span: node.span().len(),
-                grabbed_key_string: key.as_str().to_string(),
+            errors.push(ConfigError {
+                src: src.clone(),
+                error_location: Some((node.span().offset(), node.span().len()).into()),
+                kind: ConfigErrorKind::KeyToCharConversion {
+                    grabbed_key_string: key.as_str().to_string(),
+                },
             });
             return Err(errors);
         };
