@@ -120,15 +120,36 @@ impl<T: ListCollection> ListView<T> {
         area: Rect,
         is_highlighted: bool,
     ) {
-        let status_style = if item.is_closed() {
-            Style::default().fg(Color::Red)
-        } else {
-            Style::default().fg(Color::Green)
-        };
-        let status = if item.is_closed() { "✓" } else { "○" };
-        let item_number = item.get_number();
-        let item_title = item.get_title();
+        let inner_area = self.render_line_highlight(is_highlighted, render_frame, area);
 
+        let title = self.generate_top_info_line(item);
+        let lower_info = self.generate_bottom_info_line(item);
+
+        let horizontal_split = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(
+                    max(title.len(), lower_info.len()).try_into().unwrap_or(30), // default here should be fine might create a seperate
+                                                                                 // constant
+                ),
+                Constraint::Length(2), // spacer
+                Constraint::Fill(1),
+            ])
+            .split(inner_area);
+
+        self.render_main_info(title, lower_info, item, render_frame, horizontal_split[0]);
+
+        self.render_tags(item, render_frame, horizontal_split[2]);
+    }
+
+    /// determines wether or not the current item should be rendered highlighted or not and returns
+    /// the inner area of the highlighted line
+    fn render_line_highlight(
+        &self,
+        is_highlighted: bool,
+        render_frame: &mut Frame,
+        area: Rect,
+    ) -> Rect {
         let item_style = if is_highlighted && self.is_focused {
             Style::default().bg(Color::Rgb(120, 120, 120))
         } else {
@@ -140,62 +161,78 @@ impl<T: ListCollection> ListView<T> {
         let inner_area = outer_block.inner(area);
         render_frame.render_widget(outer_block, area);
 
-        let title = format!("[{status}] #{item_number} - {item_title}");
+        inner_area
+    }
 
+    /// generates the first line for generale info on an item
+    fn generate_top_info_line(&self, item: &dyn ListItem) -> String {
+        let status = if item.is_closed() { "✓" } else { "○" };
+        let item_number = item.get_number();
+        let item_title = item.get_title();
+
+        format!("[{status}] #{item_number} - {item_title}")
+    }
+
+    /// generates the second line for more detailed info on an item
+    fn generate_bottom_info_line(&self, item: &dyn ListItem) -> String {
         let created_at = item.get_created_at().to_str(self.config.get_datetime_fmt());
         let author_name = item.get_author_login().unwrap_or("");
-        let lower_issue_info = format!("{author_name} @ {created_at}");
 
-        let horizontal_split = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(
-                    max(title.len(), lower_issue_info.len())
-                        .try_into()
-                        .unwrap_or(30), // default here should be fine might create a seperate
-                                        // constant
-                ),
-                Constraint::Length(2), // spacer
-                Constraint::Fill(1),
-            ])
-            .split(inner_area);
+        format!("{author_name} @ {created_at}")
+    }
+
+    /// renders the main info chunk of an item
+    fn render_main_info(
+        &self,
+        title: String,
+        lower_info: String,
+        item: &dyn ListItem,
+        render_frame: &mut Frame,
+        area: Rect,
+    ) {
+        let status_style = if item.is_closed() {
+            Style::default().fg(Color::Red)
+        } else {
+            Style::default().fg(Color::Green)
+        };
 
         let info_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Length(1)])
-            .split(horizontal_split[0]);
+            .split(area);
 
         let title_paragraph = Paragraph::new(Span::styled(title, status_style));
         render_frame.render_widget(title_paragraph, info_chunks[0]);
 
-        let lower_issue_info_paragraph =
-            Paragraph::new(Span::styled(lower_issue_info, Style::default()));
+        let lower_issue_info_paragraph = Paragraph::new(Span::styled(lower_info, Style::default()));
         render_frame.render_widget(lower_issue_info_paragraph, info_chunks[1]);
+    }
 
+    /// renders tags on an item
+    fn render_tags(&self, item: &dyn ListItem, render_frame: &mut Frame, area: Rect) {
         let labels = item.get_labels();
-        if !labels.is_empty() {
-            let mut tags: Vec<Paragraph> = vec![];
-            let mut constraints: Vec<Constraint> = vec![];
 
-            for label in labels {
-                let label_fmt = format!("[{label}]");
-                constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
-                tags.push(Paragraph::new(Span::styled(
-                    label_fmt,
-                    self.config.get_tag_color(&label),
-                )));
-            }
+        let mut tags: Vec<Paragraph> = vec![];
+        let mut constraints: Vec<Constraint> = vec![];
 
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(constraints)
-                .flex(Flex::Start)
-                .spacing(1)
-                .split(horizontal_split[2]);
+        for label in labels {
+            let label_fmt = format!("[{label}]");
+            constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
+            tags.push(Paragraph::new(Span::styled(
+                label_fmt,
+                self.config.get_tag_color(&label),
+            )));
+        }
 
-            for (tag, chunk) in tags.iter().zip(chunks.iter()) {
-                render_frame.render_widget(tag, *chunk);
-            }
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(constraints)
+            .flex(Flex::Start)
+            .spacing(1)
+            .split(area);
+
+        for (tag, chunk) in tags.iter().zip(chunks.iter()) {
+            render_frame.render_widget(tag, *chunk);
         }
     }
 }

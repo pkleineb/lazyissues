@@ -794,19 +794,21 @@ impl State {
     /// reads repositories found in state file
     fn read_repositories(&mut self, repositories_node: &KdlNode) {
         for child in repositories_node.iter_children() {
-            if let "repo" = child.name().value() {
-                let entries: Vec<&str> = get_entries_as_string_vec!(child);
-                if entries.len() < 2 {
-                    log::warn!("repo tag is malformed. Missing either local repo path, active remote or both: {child:?}");
-                    continue;
-                }
-
-                let repo_path = PathBuf::from(entries[0]);
-                let active_remote = entries[1];
-
-                self.repository_state
-                    .insert(repo_path, active_remote.to_string());
+            if child.name().value() != "repo" {
+                continue;
             }
+
+            let entries: Vec<&str> = get_entries_as_string_vec!(child);
+            if entries.len() < 2 {
+                log::warn!("repo tag is malformed. Missing either local repo path, active remote or both: {child:?}");
+                continue;
+            }
+
+            let repo_path = PathBuf::from(entries[0]);
+            let active_remote = entries[1];
+
+            self.repository_state
+                .insert(repo_path, active_remote.to_string());
         }
     }
 

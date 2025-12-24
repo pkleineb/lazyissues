@@ -310,13 +310,18 @@ pub mod github {
         /// gets all labels of an issue
         fn get_labels(&self) -> Vec<String> {
             let mut result = Vec::new();
-            if let Some(labels) = &self.labels {
-                if let Some(nodes) = &labels.nodes {
-                    for label in nodes.iter().flatten() {
-                        result.push(label.name.clone());
-                    }
-                }
+            let Some(labels) = &self.labels else {
+                return result;
+            };
+
+            let Some(nodes) = &labels.nodes else {
+                return result;
+            };
+
+            for label in nodes.iter().flatten() {
+                result.push(label.name.clone());
             }
+
             result
         }
     }
@@ -370,13 +375,18 @@ pub mod github {
         /// gets all asigned labels for that pull request
         fn get_labels(&self) -> Vec<String> {
             let mut result = Vec::new();
-            if let Some(labels) = &self.labels {
-                if let Some(nodes) = &labels.nodes {
-                    for label in nodes.iter().flatten() {
-                        result.push(label.name.clone());
-                    }
-                }
+            let Some(labels) = &self.labels else {
+                return result;
+            };
+
+            let Some(nodes) = &labels.nodes else {
+                return result;
+            };
+
+            for label in nodes.iter().flatten() {
+                result.push(label.name.clone());
             }
+
             result
         }
     }
@@ -546,13 +556,19 @@ pub mod github {
 
         fn get_labels(&self) -> Vec<String> {
             let mut result = Vec::new();
-            if let Some(labels) = &self.labels {
-                if let Some(nodes) = &labels.nodes {
-                    for label in nodes.iter().flatten() {
-                        result.push(label.name.clone());
-                    }
-                }
+
+            let Some(labels) = &self.labels else {
+                return result;
+            };
+
+            let Some(nodes) = &labels.nodes else {
+                return result;
+            };
+
+            for label in nodes.iter().flatten() {
+                result.push(label.name.clone());
             }
+
             result
         }
 

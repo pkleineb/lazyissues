@@ -13,16 +13,11 @@ use crate::{config::Config, graphql_requests::github::types::DateTime};
 
 use super::{list_view::ListItem, PanelElement, RepoData};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Default)]
 enum ScrollDirection {
+    #[default]
     Up,
     Down,
-}
-
-impl Default for ScrollDirection {
-    fn default() -> Self {
-        Self::Up
-    }
 }
 
 /// detail view name for `UiStack`
@@ -138,30 +133,33 @@ impl DetailView {
 
         render_frame.render_widget(spacer_bar, vertical_split[1]);
 
+        self.render_tags(item, render_frame, title_layout[3]);
+    }
+
+    fn render_tags(&self, item: &dyn DetailListItem, render_frame: &mut Frame, area: Rect) {
         let labels = item.get_labels();
-        if !labels.is_empty() {
-            let mut tags: Vec<Paragraph> = vec![];
-            let mut constraints: Vec<Constraint> = vec![];
 
-            for label in labels {
-                let label_fmt = format!("[{label}]");
-                constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
-                tags.push(Paragraph::new(Span::styled(
-                    label_fmt,
-                    self.config.get_tag_color(&label),
-                )));
-            }
+        let mut tags: Vec<Paragraph> = vec![];
+        let mut constraints: Vec<Constraint> = vec![];
 
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(constraints)
-                .flex(Flex::End)
-                .spacing(1)
-                .split(title_layout[3]);
+        for label in labels {
+            let label_fmt = format!("[{label}]");
+            constraints.push(Constraint::Length(label_fmt.len() as u16 + 2));
+            tags.push(Paragraph::new(Span::styled(
+                label_fmt,
+                self.config.get_tag_color(&label),
+            )));
+        }
 
-            for (tag, chunk) in tags.iter().zip(chunks.iter()) {
-                render_frame.render_widget(tag, *chunk);
-            }
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(constraints)
+            .flex(Flex::End)
+            .spacing(1)
+            .split(area);
+
+        for (tag, chunk) in tags.iter().zip(chunks.iter()) {
+            render_frame.render_widget(tag, *chunk);
         }
     }
 

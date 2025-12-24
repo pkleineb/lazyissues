@@ -101,7 +101,7 @@ impl EventLoop {
                         self.send_tick();
                     }
                 }
-                Err(error) => println!("{error} occured during polling!"),
+                Err(error) => log::debug!("{error} occured during polling!"),
             }
         }
     }
@@ -111,11 +111,11 @@ impl EventLoop {
         match event::read() {
             Ok(CrossEvent::Key(key)) => {
                 if let Err(error) = self.sender.send(Event::Input(CrossEvent::Key(key))) {
-                    println!("{error} occured during sending!");
+                    log::debug!("{error} occured during sending!");
                 }
             }
             Ok(_) => (),
-            Err(error) => println!("{error} occured during reading of event!"),
+            Err(error) => log::debug!("{error} occured during reading of event!"),
         }
     }
 
