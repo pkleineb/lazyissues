@@ -23,6 +23,7 @@ pub mod git;
 // TODO create unit and integration tests for reading the config
 
 /// gets a kdl nodes value as a string or emits an error passing through code using the ?-operator
+#[macro_export]
 macro_rules! get_kdl_string_value_or_error {
     ($node:expr) => {
         $node
@@ -39,6 +40,7 @@ macro_rules! get_kdl_string_value_or_error {
 
 /// gets the first entry of a node as a string
 /// :return Option<String>
+#[macro_export]
 macro_rules! get_first_entry_as_string {
     ($node:expr) => {
         $node
@@ -49,6 +51,7 @@ macro_rules! get_first_entry_as_string {
 }
 
 /// gets all entries of a node as a std::vec<String>
+#[macro_export]
 macro_rules! get_entries_as_string_vec {
     ($node:expr) => {
         $node
@@ -61,6 +64,7 @@ macro_rules! get_entries_as_string_vec {
 
 /// gets the first entry of a node as a PathBuf
 /// :return Option<PathBuf>
+#[macro_export]
 macro_rules! get_first_entry_as_PathBuf {
     ($node:expr) => {
         $node.entries().first().map_or(None, |entry| {
@@ -74,6 +78,7 @@ macro_rules! get_first_entry_as_PathBuf {
 
 /// gets the first entry of a node as an int
 /// :return Option<int>
+#[macro_export]
 macro_rules! get_first_entry_as_int {
     ($node:expr) => {
         $node
